@@ -149,15 +149,22 @@ inline void convex_hull_downsample(ParentNetId net_id, const t_bb& net_bb, vtr::
         RRNodeId rr_sink = route_ctx.net_rr_terminals[net_id][i];
         if (!inside_bb(rr_sink, net_bb))
             continue;
-        SinkPoint point{rr_graph.node_xlow(rr_sink), rr_graph.node_ylow(rr_sink), int(i)};
+        Direction dir = rr_graph.node_direction(rr_sink);
+        int x = dir == Direction::DEC ? rr_graph.node_xhigh(rr_sink) : rr_graph.node_xlow(rr_sink);
+        int y = dir == Direction::DEC ? rr_graph.node_yhigh(rr_sink) : rr_graph.node_ylow(rr_sink);
+        SinkPoint point{x, y, int(i)};
         sink_points.push_back(point);
     }
 
     auto hull = sink_sampling::quickhull(sink_points);
 
+    auto& is_isink_reached = tree.get_is_isink_reached();
+
     /* Sample if not source */
     for (auto& point : hull) {
         if (point.isink == 0) /* source */
+            continue;
+        if(is_isink_reached.get(point.isink))
             continue;
         out.set(point.isink, true);
     }

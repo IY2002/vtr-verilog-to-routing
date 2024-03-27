@@ -389,8 +389,8 @@ inline std::string describe_vnet(const VirtualNet& vnet) {
 
 template<typename HeapType>
 bool DecompNetlistRouter<HeapType>::decompose_and_route_vnet(VirtualNet& vnet, const PartitionTreeNode& node, VirtualNet& left, VirtualNet& right) {
-    /* Sample enough sinks to provide branch-off points to the virtual nets we create */
-    auto sink_mask = get_vnet_decomposition_mask(vnet, node);
+        /* Sample enough sinks to provide branch-off points to the virtual nets we create */
+    auto sink_mask = get_decomposition_mask_vnet(vnet, node);
 
     /* Route the *parent* net with the given mask: only the sinks we ask for will be routed */
     auto flags = route_net(
@@ -647,7 +647,7 @@ inline bool get_reduction_mask_vnet_with_source(const VirtualNet& vnet, Axis cut
 }
 
 template<typename HeapType>
-vtr::dynamic_bitset<> DecompNetlistRouter<HeapType>::get_vnet_decomposition_mask(const VirtualNet& vnet, const PartitionTreeNode& node) {
+vtr::dynamic_bitset<> DecompNetlistRouter<HeapType>::get_decomposition_mask_vnet(const VirtualNet& vnet, const PartitionTreeNode& node) {
     const auto& route_ctx = g_vpr_ctx.routing();
     const RouteTree& tree = route_ctx.route_trees[vnet.net_id].value();
     int num_sinks = tree.num_sinks();
@@ -659,10 +659,11 @@ vtr::dynamic_bitset<> DecompNetlistRouter<HeapType>::get_vnet_decomposition_mask
      * sinks in the small side and unblock. Add convex hull since we are in a vnet which
      * may not have a source at all */
     if (inside_bb(tree.root().inode, vnet.clipped_bb)) { /* We have source, no need to sample after reduction in most cases */
-        bool is_reduced = get_reduction_mask_vnet_with_source(vnet, node.cutline_axis, node.cutline_pos, out);
+                bool is_reduced = get_reduction_mask_vnet_with_source(vnet, node.cutline_axis, node.cutline_pos, out);
         bool source_on_cutline = is_close_to_cutline(tree.root().inode, node.cutline_axis, node.cutline_pos, 1);
-        if (!is_reduced || source_on_cutline)
+        if (!is_reduced || source_on_cutline){
             convex_hull_downsample(vnet.net_id, vnet.clipped_bb, out);
+        }    
     } else {
         int reduced_sides = get_reduction_mask_vnet_no_source(vnet, node.cutline_axis, node.cutline_pos, out);
         if (reduced_sides < 2) {
@@ -675,9 +676,11 @@ vtr::dynamic_bitset<> DecompNetlistRouter<HeapType>::get_vnet_decomposition_mask
     /* Sample if a sink is too close to the cutline (and unreached).
      * Those sinks are likely to fail routing */
     for (size_t isink : isinks) {
+        RRNodeId rr_sink = route_ctx.net_rr_terminals[vnet.net_id][isink];
+        if (!inside_bb(rr_sink, vnet.clipped_bb))
+            continue;
         if (is_isink_reached.get(isink))
             continue;
-        RRNodeId rr_sink = route_ctx.net_rr_terminals[vnet.net_id][isink];
         if (is_close_to_cutline(rr_sink, node.cutline_axis, node.cutline_pos, 1)) {
             out.set(isink, true);
             continue;

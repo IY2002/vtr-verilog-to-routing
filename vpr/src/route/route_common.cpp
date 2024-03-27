@@ -3,10 +3,13 @@
 #include "atom_netlist_utils.h"
 #include "connection_router_interface.h"
 #include "draw_global.h"
+#include "globals.h"
 #include "place_and_route.h"
 #include "route_common.h"
 #include "route_export.h"
 #include "rr_graph.h"
+
+#include "partition_tree.h"
 
 /*  The numbering relation between the channels and clbs is:				*
  *																	        *
@@ -237,9 +240,9 @@ void pathfinder_update_acc_cost_and_overuse_info(float acc_fac, OveruseInfo& ove
 
 /** Update pathfinder cost of all nodes rooted at rt_node, including rt_node itself */
 void pathfinder_update_cost_from_route_tree(const RouteTreeNode& root, int add_or_sub) {
-    pathfinder_update_single_node_occupancy(root.inode, add_or_sub);
+        pathfinder_update_single_node_occupancy(root.inode, add_or_sub);
     for (auto& node : root.all_nodes()) {
-        pathfinder_update_single_node_occupancy(node.inode, add_or_sub);
+                pathfinder_update_single_node_occupancy(node.inode, add_or_sub);
     }
 }
 

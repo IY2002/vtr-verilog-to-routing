@@ -70,7 +70,7 @@ class DecompNetlistRouter : public NetlistRouter {
     /** Get a bitset with sinks to route before net decomposition */
     vtr::dynamic_bitset<> get_decomposition_mask(ParentNetId net_id, const PartitionTreeNode& node);
     /** Get a bitset with sinks to route before virtual net decomposition */
-    vtr::dynamic_bitset<> get_vnet_decomposition_mask(const VirtualNet& vnet, const PartitionTreeNode& node);
+    vtr::dynamic_bitset<> get_decomposition_mask_vnet(const VirtualNet& vnet, const PartitionTreeNode& node);
     /** Decompose and route a regular net. Output the resulting vnets to \p left and \p right.
      * \return Success status: true if routing is successful and left and right now contain valid virtual nets: false otherwise. */
     bool decompose_and_route_net(ParentNetId net_id, const PartitionTreeNode& node, VirtualNet& left, VirtualNet& right);

@@ -1,4 +1,5 @@
 #include "connection_router.h"
+#include "route_common.h"
 #include "rr_graph.h"
 
 #include "binary_heap.h"
@@ -900,6 +901,9 @@ void ConnectionRouter<Heap>::add_route_tree_node_to_heap(
     float backward_path_cost = cost_params.criticality * rt_node.Tdel;
     float R_upstream = rt_node.R_upstream;
 
+    if(!inside_bb(inode, net_bb))
+        return;
+
     // after budgets are loaded, calculate delay cost as described by RCV paper
     /* R. Fung, V. Betz and W. Chow, "Slack Allocation and Routing to Improve FPGA Timing While
      * Repairing Short-Path Violations," in IEEE Transactions on Computer-Aided Design of
@@ -1012,6 +1016,9 @@ t_bb ConnectionRouter<Heap>::add_high_fanout_route_tree_to_heap(
                     continue;
                 RRNodeId rr_node_to_add = rt_node.inode;
 
+                if(!inside_bb(rr_node_to_add, net_bounding_box))
+                    continue;
+
                 if (is_flat_) {
                     if (!relevant_node_to_target(rr_graph_, rr_node_to_add, target_node))
                         continue;
@@ -1028,16 +1035,14 @@ t_bb ConnectionRouter<Heap>::add_high_fanout_route_tree_to_heap(
 
                 /* In case of the parallel router, we may be dealing with a virtual net.
                  * Still push nodes outside the BB to the heap, but don't count them towards nodes_added */
-                if(inside_bb(rr_node_to_add, net_bounding_box)){
-                    if (is_flat_) {
-                        if (rr_graph_->node_type(rr_node_to_add) == CHANY || rr_graph_->node_type(rr_node_to_add) == CHANX) {
-                            chan_nodes_added++;
-                        }
-                    } else {
+                if (is_flat_) {
+                    if (rr_graph_->node_type(rr_node_to_add) == CHANY || rr_graph_->node_type(rr_node_to_add) == CHANX) {
                         chan_nodes_added++;
                     }
-                    nodes_added++;
+                } else {
+                    chan_nodes_added++;
                 }
+                nodes_added++;
             }
 
             constexpr int SINGLE_BIN_MIN_NODES = 2;
