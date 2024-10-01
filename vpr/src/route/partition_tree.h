@@ -1,6 +1,7 @@
 #pragma once
 
 #include "connection_router.h"
+#include "netlist_fwd.h"
 #include "router_stats.h"
 
 #include <cmath>
@@ -53,13 +54,15 @@ class VirtualNet {
 class PartitionTreeNode {
   public:
     /** Nets claimed by this node (intersected by cutline if branch, nets in final region if leaf) */
-    std::vector<ParentNetId> nets;
+    std::unordered_set<ParentNetId> nets;
     /** Virtual nets assigned by the parent of this node (\see DecompNetlistRouter) */
     std::vector<VirtualNet> vnets;
     /** Left subtree. */
     std::unique_ptr<PartitionTreeNode> left = nullptr;
     /** Right subtree. */
     std::unique_ptr<PartitionTreeNode> right = nullptr;
+    /** Parent node. */
+    PartitionTreeNode* parent = nullptr;
     /* Axis of the cutline. */
     Axis cutline_axis = Axis::X;
     /* Position of the cutline. It's a float, because cutlines are considered to be "between" integral coordinates. */
@@ -83,9 +86,14 @@ class PartitionTree {
     /** Access root. Shouldn't cause a segfault, because PartitionTree constructor always makes a _root */
     inline PartitionTreeNode& root(void) { return *_root; }
 
+    void update_nets(const std::vector<ParentNetId>& nets);
+  
+    void clear_vnets(void);
+
   private:
     std::unique_ptr<PartitionTreeNode> _root;
-    std::unique_ptr<PartitionTreeNode> build_helper(const Netlist<>& netlist, const std::vector<ParentNetId>& nets, int x1, int y1, int x2, int y2);
+    std::unordered_map<ParentNetId, PartitionTreeNode*> _net_to_ptree_node;
+    std::unique_ptr<PartitionTreeNode> build_helper(const Netlist<>& netlist, const std::unordered_set<ParentNetId>& nets, int x1, int y1, int x2, int y2);
 };
 
 #ifdef VPR_DEBUG_PARTITION_TREE

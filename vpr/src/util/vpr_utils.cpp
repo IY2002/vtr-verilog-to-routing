@@ -2359,8 +2359,8 @@ bool node_in_same_physical_tile(RRNodeId node_first, RRNodeId node_second) {
     if (first_rr_type == t_rr_type::CHANX || first_rr_type == t_rr_type::CHANY || second_rr_type == t_rr_type::CHANX || second_rr_type == t_rr_type::CHANY) {
         return false;
     } else {
-        VTR_ASSERT(first_rr_type == t_rr_type::IPIN || first_rr_type == t_rr_type::OPIN || first_rr_type == t_rr_type::SINK || first_rr_type == t_rr_type::SOURCE);
-        VTR_ASSERT(second_rr_type == t_rr_type::IPIN || second_rr_type == t_rr_type::OPIN || second_rr_type == t_rr_type::SINK || second_rr_type == t_rr_type::SOURCE);
+        VTR_ASSERT_SAFE(first_rr_type == t_rr_type::IPIN || first_rr_type == t_rr_type::OPIN || first_rr_type == t_rr_type::SINK || first_rr_type == t_rr_type::SOURCE);
+        VTR_ASSERT_SAFE(second_rr_type == t_rr_type::IPIN || second_rr_type == t_rr_type::OPIN || second_rr_type == t_rr_type::SINK || second_rr_type == t_rr_type::SOURCE);
         int first_layer = rr_graph.node_layer(node_first);
         int first_x = rr_graph.node_xlow(node_first);
         int first_y = rr_graph.node_ylow(node_first);

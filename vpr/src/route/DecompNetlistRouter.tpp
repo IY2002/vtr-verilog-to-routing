@@ -3,6 +3,7 @@
 /** @file Impls for DecompNetlistRouter */
 
 #include "DecompNetlistRouter.h"
+#include "globals.h"
 #include "netlist_routers.h"
 #include "route_net.h"
 #include "sink_sampling.h"
@@ -21,15 +22,21 @@ inline RouteIterResults DecompNetlistRouter<HeapType>::route_netlist(int itry, f
     _pres_fac = pres_fac;
     _worst_neg_slack = worst_neg_slack;
 
+    vtr::Timer t;
+
     /* Organize netlist into a PartitionTree.
      * Nets in a given level of nodes are guaranteed to not have any overlapping bounding boxes, so they can be routed in parallel. */
-    PartitionTree tree(_net_list);
+    if(!_tree){
+        _tree = PartitionTree(_net_list);
+        PartitionTreeDebug::log("Iteration " + std::to_string(itry) + ": built partition tree in " + std::to_string(t.elapsed_sec()) + " s");
+    }
 
-    vtr::Timer t;
+    /* Remove all virtual nets: we will create them for each iteration */
+    _tree->clear_vnets();
 
     /* Put the root node on the task queue, which will add its child nodes when it's finished. Wait until the entire tree gets routed. */
     tbb::task_group g;
-    route_partition_tree_node(g, tree.root());
+    route_partition_tree_node(g, _tree->root());
     g.wait();
     PartitionTreeDebug::log("Routing all nets took " + std::to_string(t.elapsed_sec()) + " s");
 
@@ -38,10 +45,18 @@ inline RouteIterResults DecompNetlistRouter<HeapType>::route_netlist(int itry, f
     for (auto& results : _results_th) {
         out.stats.combine(results.stats);
         out.rerouted_nets.insert(out.rerouted_nets.end(), results.rerouted_nets.begin(), results.rerouted_nets.end());
+        out.bb_updated_nets.insert(out.bb_updated_nets.end(), results.bb_updated_nets.begin(), results.bb_updated_nets.end());
         out.is_routable &= results.is_routable;
     }
 
     return out;
+}
+
+/* TODO: Handle this in route_netlist */
+template<typename HeapType>
+void DecompNetlistRouter<HeapType>::handle_bb_updated_nets(const std::vector<ParentNetId>& nets) {
+    VTR_ASSERT(_tree);
+    _tree->update_nets(nets);
 }
 
 template<typename HeapType>
@@ -124,6 +139,9 @@ inline bool should_decompose_vnet(const VirtualNet& vnet, const PartitionTreeNod
 template<typename HeapType>
 void DecompNetlistRouter<HeapType>::route_partition_tree_node(tbb::task_group& g, PartitionTreeNode& node) {
     auto& route_ctx = g_vpr_ctx.mutable_routing();
+    vtr::Timer t;
+
+    std::vector<ParentNetId> nets(node.nets.begin(), node.nets.end());
 
     /* Sort so that nets with the most sinks are routed first.
      * We want to interleave virtual nets with regular ones, so sort an "index vector"
@@ -133,15 +151,14 @@ void DecompNetlistRouter<HeapType>::route_partition_tree_node(tbb::task_group& g
     std::vector<size_t> order(node.nets.size() + node.vnets.size());
     std::iota(order.begin(), order.end(), 0);
     std::sort(order.begin(), order.end(), [&](size_t i, size_t j) -> bool {
-        ParentNetId id1 = i < node.nets.size() ? node.nets[i] : node.vnets[i - node.nets.size()].net_id;
-        ParentNetId id2 = j < node.nets.size() ? node.nets[j] : node.vnets[j - node.nets.size()].net_id;
+        ParentNetId id1 = i < node.nets.size() ? nets[i] : node.vnets[i - nets.size()].net_id;
+        ParentNetId id2 = j < node.nets.size() ? nets[j] : node.vnets[j - nets.size()].net_id;
         return _net_list.net_sinks(id1).size() > _net_list.net_sinks(id2).size();
     });
 
-    vtr::Timer t;
     for (size_t i : order) {
-        if (i < node.nets.size()) { /* Regular net (not decomposed) */
-            ParentNetId net_id = node.nets[i];
+        if (i < nets.size()) { /* Regular net (not decomposed) */
+            ParentNetId net_id = nets[i];
             if (!should_route_net(_net_list, net_id, _connections_inf, _budgeting_inf, _worst_neg_slack, true))
                 continue;
             /* Setup the net (reset or prune) only once here in the flow. Then all calls to route_net turn off auto-setup */
@@ -194,6 +211,7 @@ void DecompNetlistRouter<HeapType>::route_partition_tree_node(tbb::task_group& g
             if (flags.retry_with_full_bb) {
                 /* ConnectionRouter thinks we should grow the BB. Do that and leave this net unrouted for now */
                 route_ctx.route_bb[net_id] = full_device_bb();
+                _results_th.local().bb_updated_nets.push_back(net_id);
                 /* Disable decomposition for nets like this: they're already problematic */
                 _is_decomp_disabled[net_id] = true;
                 continue;
@@ -212,7 +230,7 @@ void DecompNetlistRouter<HeapType>::route_partition_tree_node(tbb::task_group& g
                     continue;
                 }
             }
-            /* Route the full vnet. Again we don't care about the flags, they should be handled by the regular path */
+            /* Route the full vnet. We don't care about the flags, they should be handled by the regular path */
             auto sink_mask = get_vnet_sink_mask(vnet);
             route_net(
                 _routers_th.local(),
@@ -284,7 +302,7 @@ inline void make_vnet_pair(ParentNetId net_id, const t_bb& bb, Axis cutline_axis
 
 template<typename HeapType>
 bool DecompNetlistRouter<HeapType>::decompose_and_route_net(ParentNetId net_id, const PartitionTreeNode& node, VirtualNet& left, VirtualNet& right) {
-    auto& route_ctx = g_vpr_ctx.routing();
+    auto& route_ctx = g_vpr_ctx.mutable_routing();
     auto& net_bb = route_ctx.route_bb[net_id];
 
     /* Sample enough sinks to provide branch-off points to the virtual nets we create */
@@ -508,6 +526,7 @@ inline bool get_reduction_mask(ParentNetId net_id, Axis cutline_axis, int cutlin
 template<typename HeapType>
 vtr::dynamic_bitset<> DecompNetlistRouter<HeapType>::get_decomposition_mask(ParentNetId net_id, const PartitionTreeNode& node) {
     const auto& route_ctx = g_vpr_ctx.routing();
+
     const RouteTree& tree = route_ctx.route_trees[net_id].value();
     size_t num_sinks = tree.num_sinks();
 
@@ -521,6 +540,7 @@ vtr::dynamic_bitset<> DecompNetlistRouter<HeapType>::get_decomposition_mask(Pare
     bool is_reduced = get_reduction_mask(net_id, node.cutline_axis, node.cutline_pos, out);
 
     bool source_on_cutline = is_close_to_cutline(tree.root().inode, node.cutline_axis, node.cutline_pos, 1);
+
     if (!is_reduced || source_on_cutline)
         convex_hull_downsample(net_id, route_ctx.route_bb[net_id], out);
 

@@ -59,6 +59,7 @@ class DecompNetlistRouter : public NetlistRouter {
      * \ref route_net for each net, which will handle other global updates.
      * \return RouteIterResults for this iteration. */
     RouteIterResults route_netlist(int itry, float pres_fac, float worst_neg_slack);
+    void handle_bb_updated_nets(const std::vector<ParentNetId>& nets);
     /** Set RCV enable flag for all routers managed by this netlist router.
      * Net decomposition does not work with RCV, so calling this fn with x=true is a fatal error. */
     void set_rcv_enabled(bool x);
@@ -117,6 +118,9 @@ class DecompNetlistRouter : public NetlistRouter {
     int _itry;
     float _pres_fac;
     float _worst_neg_slack;
+
+    /** The partition tree */
+    vtr::optional<PartitionTree> _tree;
 
     /** Sinks to be always sampled for decomposition for each net: [0.._net_list.size()-1]
      * (i.e. when routing fails after decomposition for a sink, sample it on next iteration) */

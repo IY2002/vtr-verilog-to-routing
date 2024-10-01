@@ -4,11 +4,14 @@
 
 #include "SerialNetlistRouter.h"
 #include "route_net.h"
+#include "vtr_time.h"
 
 template<typename HeapType>
 inline RouteIterResults SerialNetlistRouter<HeapType>::route_netlist(int itry, float pres_fac, float worst_neg_slack) {
     auto& route_ctx = g_vpr_ctx.mutable_routing();
     RouteIterResults out;
+
+    vtr::Timer t;
 
     /* Sort so net with most sinks is routed first */
     auto sorted_nets = std::vector<ParentNetId>(_net_list.nets().begin(), _net_list.nets().end());
@@ -46,7 +49,7 @@ inline RouteIterResults SerialNetlistRouter<HeapType>::route_netlist(int itry, f
         }
 
         if (flags.retry_with_full_bb) {
-            /* Grow the BB and retry this net right away. */
+            /* Grow the BB and retry this net right away. We don't populate out.bb_updated_nets */
             route_ctx.route_bb[net_id] = full_device_bb();
             inet--;
             continue;
@@ -60,7 +63,13 @@ inline RouteIterResults SerialNetlistRouter<HeapType>::route_netlist(int itry, f
         }
     }
 
+    PartitionTreeDebug::log("Routing all nets took " + std::to_string(t.elapsed_sec()) + " s");
     return out;
+}
+
+/* TODO: Handle this in route_netlist */
+template<typename HeapType>
+void SerialNetlistRouter<HeapType>::handle_bb_updated_nets(const std::vector<ParentNetId>& /* nets */) {
 }
 
 template<typename HeapType>

@@ -6,6 +6,7 @@
 #include <vector>
 #include "router_stats.h"
 #include "globals.h"
+#include "rr_node_types.h"
 
 /** This routine checks to see if this is a resource-feasible routing.
  * That is, are all rr_node capacity limitations respected?  It assumes
@@ -21,8 +22,9 @@ inline bool inside_bb(RRNodeId inode, const t_bb& bb) {
     const auto& rr_graph = device_ctx.rr_graph;
 
     int x, y, z;
+    e_rr_type type = rr_graph.node_type(inode);
     Direction dir = rr_graph.node_direction(inode);
-    if (dir == Direction::DEC) {
+    if ((type == CHANX || type == CHANY) && dir == Direction::DEC) {
         x = rr_graph.node_xhigh(inode);
         y = rr_graph.node_yhigh(inode);
         z = rr_graph.node_layer(inode);

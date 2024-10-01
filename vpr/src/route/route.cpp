@@ -425,10 +425,12 @@ bool route(const Netlist<>& net_list,
         /*
          * Prepare for the next iteration
          */
-
         if (router_opts.route_bb_update == e_route_bb_update::DYNAMIC) {
-            num_net_bounding_boxes_updated = dynamic_update_bounding_boxes(iter_results.rerouted_nets);
+            dynamic_update_bounding_boxes(iter_results.rerouted_nets, iter_results.bb_updated_nets);
         }
+
+        num_net_bounding_boxes_updated = iter_results.bb_updated_nets.size();
+        netlist_router->handle_bb_updated_nets(iter_results.bb_updated_nets);
 
         if (itry >= high_effort_congestion_mode_iteration_threshold) {
             //We are approaching the maximum number of routing iterations,

@@ -15,6 +15,7 @@
  * NetlistRouter-derived class is still a NetlistRouter, so that is transparent to the user
  * of this interface. */
 
+#include <vector>
 #include "NetPinTimingInvalidator.h"
 #include "binary_heap.h"
 #include "bucket.h"
@@ -39,6 +40,8 @@ struct RouteIterResults {
     bool is_routable = true;
     /** Net IDs with changed routing */
     std::vector<ParentNetId> rerouted_nets;
+    /** Net IDs with changed bounding box */
+    std::vector<ParentNetId> bb_updated_nets;
     /** RouterStats for this iteration */
     RouterStats stats;
 };
@@ -54,6 +57,9 @@ class NetlistRouter {
      * route_net for each net, which will handle other global updates.
      * \return RouteIterResults for this iteration. */
     virtual RouteIterResults route_netlist(int itry, float pres_fac, float worst_neg_slack) = 0;
+
+    /** Handle net bounding box updates. No-op for the serial router */
+    virtual void handle_bb_updated_nets(const std::vector<ParentNetId>& nets) = 0;
 
     /** Enable RCV for each of the ConnectionRouters this NetlistRouter manages.*/
     virtual void set_rcv_enabled(bool x) = 0;
