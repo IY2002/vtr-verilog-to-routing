@@ -790,6 +790,14 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
     for (const RREdgeId& edge : rr_graph.node_in_edges(chan_node)) {
         /* We care the source node of this edge, and it should be an input of the GSB!!! */
         const RRNodeId& src_node = rr_graph.edge_src_node(edge);
+
+        /*  If the connection is interlayer then ignore it since we only care about 2D connections.
+            3D connections are only done inside the Switch Box.
+        */
+        if (rr_graph.node_layer(src_node) != rr_graph.node_layer(chan_node)){
+            continue;
+        }
+
         e_side side = NUM_SIDES;
         int index = 0;
         get_node_side_and_index(rr_graph, src_node, IN_PORT, side, index);
@@ -897,6 +905,14 @@ void RRGSB::sort_ipin_node_in_edges(const RRGraphView& rr_graph,
     for (const RREdgeId& edge : rr_graph.node_in_edges(ipin_node)) {
         /* We care the source node of this edge, and it should be an input of the GSB!!! */
         const RRNodeId& src_node = rr_graph.edge_src_node(edge);
+
+        /*  If the connection is interlayer then ignore it since we only care about 2D connections.
+            3D connections are only done inside the Switch Box.
+        */
+        if (rr_graph.node_layer(src_node) != rr_graph.node_layer(ipin_node)){
+            continue;
+        }
+
         /* In this part, we only sort routing track nodes. IPIN nodes will be handled later */
         if (CHANX != rr_graph.node_type(src_node) && CHANY != rr_graph.node_type(src_node)) {
           continue;
@@ -940,6 +956,14 @@ void RRGSB::sort_ipin_node_in_edges(const RRGraphView& rr_graph,
     for (const RREdgeId& edge : rr_graph.node_in_edges(ipin_node)) {
         /* We care the source node of this edge, and it should be an input of the GSB!!! */
         const RRNodeId& src_node = rr_graph.edge_src_node(edge);
+
+        /*  If the connection is interlayer then ignore it since we only care about 2D connections.
+            3D connections are only done inside the Switch Box.
+        */
+        if (rr_graph.node_layer(src_node) != rr_graph.node_layer(ipin_node)){
+            continue;
+        }
+
         /* In this part, we only sort routing track nodes. IPIN nodes will be handled later */
         if (OPIN != rr_graph.node_type(src_node)) {
           continue;
