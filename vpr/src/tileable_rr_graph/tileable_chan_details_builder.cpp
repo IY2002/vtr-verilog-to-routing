@@ -151,7 +151,7 @@ int adapt_to_tileable_route_chan_width(const int& chan_width,
  *    +------------------------------------------------------+
  *
  * 3. SPECIAL for fringes: TOP|RIGHT|BOTTOM|RIGHT
- *    if device_side is NUM_SIDES, we assume this channel does not locate on borders
+ *    if device_side is NUM_2D_SIDES, we assume this channel does not locate on borders
  *    All segments will start and ends with no exception
  *
  * 4. IMPORTANT: we should be aware that channel width maybe different

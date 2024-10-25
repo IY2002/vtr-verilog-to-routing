@@ -194,7 +194,10 @@ std::vector<RREdgeId> RRGSB::get_chan_node_in_edges(const RRGraphView& rr_graph,
         std::vector<RREdgeId> unsorted_edges;
 
         for (const RREdgeId& edge : rr_graph.node_in_edges(get_chan_node(side, track_id))) {
-            unsorted_edges.push_back(edge);
+            // only add edges that are on the same layer as the source node
+            if (rr_graph.node_layer(rr_graph.edge_src_node(edge)) == rr_graph.node_layer(get_chan_node(side, track_id))) {
+                unsorted_edges.push_back(edge);
+            }
         }
 
         return unsorted_edges;
@@ -222,7 +225,10 @@ std::vector<RREdgeId> RRGSB::get_ipin_node_in_edges(const RRGraphView& rr_graph,
         std::vector<RREdgeId> unsorted_edges;
 
         for (const RREdgeId& edge : rr_graph.node_in_edges(get_ipin_node(side, ipin_id))) {
-            unsorted_edges.push_back(edge);
+            // only add edges that are on the same layer as the source node
+            if (rr_graph.node_layer(rr_graph.edge_src_node(edge)) == rr_graph.node_layer(get_ipin_node(side, ipin_id))) {
+                unsorted_edges.push_back(edge);
+            }
         }
 
         return unsorted_edges;
@@ -400,7 +406,7 @@ void RRGSB::get_node_side_and_index(const RRGraphView& rr_graph,
     }
 
     if (side == get_num_sides()) {
-        /* we find nothing, return NUM_SIDES, and a OPEN node (-1) */
+        /* we find nothing, return NUM_2D_SIDES, and a OPEN node (-1) */
         node_side = NUM_2D_SIDES;
         VTR_ASSERT(-1 == node_index);
         return;
@@ -462,7 +468,8 @@ bool RRGSB::is_sb_exist(const RRGraphView& rr_graph) const {
                 if (OUT_PORT != get_chan_node_direction(side_manager.get_side(), itrack)) {
                     continue;
                 }
-                num_incoming_edges += get_chan_node_in_edges(rr_graph, side_manager.get_side(), itrack).size();
+                std::vector<RREdgeId> in_edges = get_chan_node_in_edges(rr_graph, side_manager.get_side(), itrack);
+                num_incoming_edges += in_edges.size();
             }
         }
         return num_incoming_edges ? true : false;
@@ -798,7 +805,7 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
             continue;
         }
 
-        e_side side = NUM_SIDES;
+        e_side side = NUM_2D_SIDES;
         int index = 0;
         get_node_side_and_index(rr_graph, src_node, IN_PORT, side, index);
 
