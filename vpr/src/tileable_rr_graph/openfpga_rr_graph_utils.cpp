@@ -107,8 +107,11 @@ std::vector<RRNodeId> get_rr_graph_configurable_driver_nodes(const RRGraphView& 
         /* Bypass non-configurable edges */
         if (false == rr_graph.edge_is_configurable(edge)) {
             continue;
-        }
-        driver_nodes.push_back(rr_graph.edge_src_node(edge));
+        }    
+        RRNodeId src_node = rr_graph.edge_src_node(edge);
+        RRNodeId sink_node = rr_graph.edge_sink_node(edge);
+        // only consider edges that are in the same layer
+        if (rr_graph.node_layer(src_node) == rr_graph.node_layer(sink_node)) driver_nodes.push_back(src_node);
     }
 
     return driver_nodes;
@@ -126,7 +129,10 @@ std::vector<RRNodeId> get_rr_graph_non_configurable_driver_nodes(const RRGraphVi
         if (true == rr_graph.edge_is_configurable(edge)) {
             continue;
         }
-        driver_nodes.push_back(rr_graph.edge_src_node(edge));
+        RRNodeId src_node = rr_graph.edge_src_node(edge);
+        RRNodeId sink_node = rr_graph.edge_sink_node(edge);
+        // only consider edges that are in the same layer
+        if (rr_graph.node_layer(src_node) == rr_graph.node_layer(sink_node)) driver_nodes.push_back(src_node);
     }
 
     return driver_nodes;
