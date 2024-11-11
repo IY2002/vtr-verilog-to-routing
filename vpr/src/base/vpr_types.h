@@ -73,7 +73,7 @@
  * memory based on the number of layers can lead to a performance hit due to additional pointer chasing and
  * cache locality concerns. Defining a constant variable helps optimize the memory allocation process.
  */
-constexpr int MAX_NUM_LAYERS = 2;
+constexpr int MAX_NUM_LAYERS = 10;
 
 /**
  * @brief For update_screen. Denotes importance of update.
