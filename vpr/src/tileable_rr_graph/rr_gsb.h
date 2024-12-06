@@ -93,8 +93,18 @@ class RRGSB {
                                                  const e_side& side,
                                                  const size_t& track_id) const;
 
+    /* get all the sorted incoming edges for a rr_node at a given side and track_id */
+    std::vector<RREdgeId> get_chan_node_in_3d_edges(const RRGraphView& rr_graph,
+                                                 const e_side& side,
+                                                 const size_t& track_id) const;
+
     /* get all the sorted incoming edges for a IPIN rr_node at a given side and ipin_id */
     std::vector<RREdgeId> get_ipin_node_in_edges(const RRGraphView& rr_graph,
+                                                 const e_side& side,
+                                                 const size_t& ipin_id) const;
+
+    /* get all the interlayer edges for a IPIN node at a give size and ipin_id */
+    std::vector<RREdgeId> get_ipin_node_in_3d_edges(const RRGraphView& rr_graph,
                                                  const e_side& side,
                                                  const size_t& ipin_id) const;
 
@@ -191,7 +201,7 @@ class RRGSB {
     /* Sort all the incoming edges for input pin rr_node */
     void sort_ipin_node_in_edges(const RRGraphView& rr_graph);
     /* Build the lists of opin node for connection blocks. This is required after adding all the nodes */
-    void build_cb_opin_nodes(const RRGraphView& rr_graph);
+    void build_cb_opin_nodes(const RRGraphView& rr_graph, bool is_3d_cb=false);
 
   public: /* Mutators: cleaners */
     void clear();

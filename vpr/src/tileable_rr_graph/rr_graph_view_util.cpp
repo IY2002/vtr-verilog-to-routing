@@ -121,6 +121,7 @@ std::vector<RRNodeId> find_rr_graph_grid_nodes(const RRGraphView& rr_graph,
                 continue;
             }
         }
+        
         if (false == device_grid.get_physical_type(tile_loc)->pinloc[width_offset][height_offset][side][pin]) {
             /* Not the pin on this side, we skip */
             continue;

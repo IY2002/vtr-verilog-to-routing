@@ -172,6 +172,40 @@ RRNodeId RRGSB::get_chan_node(const e_side& side, const size_t& track_id) const 
     return chan_node_[side_manager.to_size_t()].get_node(track_id);
 }
 
+std::vector<RREdgeId> RRGSB::get_chan_node_in_3d_edges(const RRGraphView& rr_graph,
+                                                    const e_side& side,
+                                                    const size_t& track_id) const {
+    SideManager side_manager(side);
+    VTR_ASSERT(side_manager.validate());
+
+    /* Ensure the side is valid in the context of this switch block */
+    VTR_ASSERT(validate_side(side));
+
+    /* Ensure the track is valid in the context of this switch block at a specific side */
+    VTR_ASSERT(validate_track_id(side, track_id));
+
+    /* The chan node must be an output port for the GSB, we allow users to access input edges*/
+    VTR_ASSERT(OUT_PORT == get_chan_node_direction(side, track_id));
+
+    /* if sorted, we give sorted edges
+     * if not sorted, we give the empty vector
+     */
+    if (0 == chan_node_in_edges_.size()) {
+        std::vector<RREdgeId> unsorted_edges;
+
+        for (const RREdgeId& edge : rr_graph.node_in_edges(get_chan_node(side, track_id))) {
+            // only add edges that are on the same layer as the source node
+            if (rr_graph.node_layer(rr_graph.edge_src_node(edge)) != rr_graph.node_layer(get_chan_node(side, track_id))) {
+                unsorted_edges.push_back(edge);
+            }
+        }
+
+        return unsorted_edges;
+    }
+
+    return chan_node_in_edges_[side_manager.to_size_t()][track_id];
+}
+
 std::vector<RREdgeId> RRGSB::get_chan_node_in_edges(const RRGraphView& rr_graph,
                                                     const e_side& side,
                                                     const size_t& track_id) const {
@@ -204,6 +238,37 @@ std::vector<RREdgeId> RRGSB::get_chan_node_in_edges(const RRGraphView& rr_graph,
     }
 
     return chan_node_in_edges_[side_manager.to_size_t()][track_id];
+}
+
+std::vector<RREdgeId> RRGSB::get_ipin_node_in_3d_edges(const RRGraphView& rr_graph,
+                                                    const e_side& side,
+                                                    const size_t& ipin_id) const {
+    SideManager side_manager(side);
+    VTR_ASSERT(side_manager.validate());
+
+    /* Ensure the side is valid in the context of this switch block */
+    VTR_ASSERT(validate_side(side));
+
+    /* Ensure the track is valid in the context of this switch block at a specific side */
+    VTR_ASSERT(validate_ipin_node_id(side, ipin_id));
+
+    /* if sorted, we give sorted edges
+     * if not sorted, we give the empty vector
+     */
+    if (0 == ipin_node_in_edges_.size()) {
+        std::vector<RREdgeId> unsorted_edges;
+
+        for (const RREdgeId& edge : rr_graph.node_in_edges(get_ipin_node(side, ipin_id))) {
+            // only add edges that are on the same layer as the source node
+            if (rr_graph.node_layer(rr_graph.edge_src_node(edge)) != rr_graph.node_layer(get_ipin_node(side, ipin_id))) {
+                unsorted_edges.push_back(edge);
+            }
+        }
+
+        return unsorted_edges;
+    }
+
+    return ipin_node_in_edges_[side_manager.to_size_t()][ipin_id];
 }
 
 std::vector<RREdgeId> RRGSB::get_ipin_node_in_edges(const RRGraphView& rr_graph,
@@ -794,6 +859,12 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
      *  For each side, the edge from grid pins will be the 1st part
      *  while the edge from routing tracks will be the 2nd part
      */
+
+    /** Boolean to indicate if 3D CBs are being used
+     *  TODO: make variable a function parameter
+     */
+    bool is_3d_cb = true;
+
     for (const RREdgeId& edge : rr_graph.node_in_edges(chan_node)) {
         /* We care the source node of this edge, and it should be an input of the GSB!!! */
         const RRNodeId& src_node = rr_graph.edge_src_node(edge);
@@ -801,7 +872,7 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
         /*  If the connection is interlayer then ignore it since we only care about 2D connections.
             3D connections are only done inside the Switch Box.
         */
-        if (rr_graph.node_layer(src_node) != rr_graph.node_layer(chan_node)){
+        if (!is_3d_cb && rr_graph.node_layer(src_node) != rr_graph.node_layer(chan_node)){
             continue;
         }
 
@@ -1037,25 +1108,36 @@ void RRGSB::sort_ipin_node_in_edges(const RRGraphView& rr_graph) {
     }
 }
 
-void RRGSB::build_cb_opin_nodes(const RRGraphView& rr_graph) {
+void RRGSB::build_cb_opin_nodes(const RRGraphView& rr_graph, bool is_3d_cb) {
   for (t_rr_type cb_type : {CHANX, CHANY}) {
     size_t icb_type = cb_type == CHANX ? 0 : 1;
+
     std::vector<enum e_side> cb_ipin_sides = get_cb_ipin_sides(cb_type);
+
     for (size_t iside = 0; iside < cb_ipin_sides.size(); ++iside) {
       enum e_side cb_ipin_side = cb_ipin_sides[iside];
+
       for (size_t inode = 0; inode < get_num_ipin_nodes(cb_ipin_side);
            ++inode) {
-        std::vector<RREdgeId> driver_rr_edges =
-          get_ipin_node_in_edges(rr_graph, cb_ipin_side, inode);
+
+        std::vector<RREdgeId> driver_rr_edges = get_ipin_node_in_edges(rr_graph, cb_ipin_side, inode);
+
+        if (is_3d_cb){
+            std::vector<RREdgeId> driver_rr_edges_3d = get_ipin_node_in_3d_edges(rr_graph, cb_ipin_side, inode);
+            driver_rr_edges.insert(driver_rr_edges.end(), driver_rr_edges_3d.begin(), driver_rr_edges_3d.end());
+        }
+
         for (const RREdgeId curr_edge : driver_rr_edges) {
+
           RRNodeId cand_node = rr_graph.edge_src_node(curr_edge);
           if (OPIN != rr_graph.node_type(cand_node)) {
             continue;
           }
+
           enum e_side cb_opin_side = NUM_2D_SIDES;
           int cb_opin_index = -1;
-          get_node_side_and_index(rr_graph, cand_node, IN_PORT, cb_opin_side,
-                                  cb_opin_index);
+          get_node_side_and_index(rr_graph, cand_node, IN_PORT, cb_opin_side, cb_opin_index);
+
           if ((-1 == cb_opin_index) || (NUM_2D_SIDES == cb_opin_side)) {
               VTR_LOG("GSB[%lu][%lu]:\n", get_x(), get_y());
               VTR_LOG("----------------------------------\n");
@@ -1067,6 +1149,7 @@ void RRGSB::build_cb_opin_nodes(const RRGraphView& rr_graph) {
                   VTR_LOG("\t%s\n", rr_graph.node_coordinate_to_string(rr_graph.edge_sink_node(temp_edge)).c_str());
               }
           }
+
           VTR_ASSERT((-1 != cb_opin_index) && (NUM_2D_SIDES != cb_opin_side));
 
           if (cb_opin_node_[icb_type][size_t(cb_opin_side)].end() ==
