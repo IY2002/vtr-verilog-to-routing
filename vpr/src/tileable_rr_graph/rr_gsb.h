@@ -197,11 +197,11 @@ class RRGSB {
                        const e_side& node_side);
 
     /* Sort all the incoming edges for routing channel rr_node */
-    void sort_chan_node_in_edges(const RRGraphView& rr_graph);
+    void sort_chan_node_in_edges(const RRGraphView& rr_graph, const bool is_3d_cb);
     /* Sort all the incoming edges for input pin rr_node */
     void sort_ipin_node_in_edges(const RRGraphView& rr_graph);
     /* Build the lists of opin node for connection blocks. This is required after adding all the nodes */
-    void build_cb_opin_nodes(const RRGraphView& rr_graph, bool is_3d_cb=false);
+    void build_cb_opin_nodes(const RRGraphView& rr_graph, const bool is_3d_cb=false);
 
   public: /* Mutators: cleaners */
     void clear();
@@ -222,7 +222,8 @@ class RRGSB {
     /* Sort all the incoming edges for one channel rr_node */
     void sort_chan_node_in_edges(const RRGraphView& rr_graph,
                                  const e_side& chan_side,
-                                 const size_t& track_id);
+                                 const size_t& track_id,
+                                 const bool is_3d_cb);
 
     /* Sort all the incoming edges for one input pin rr_node */
     void sort_ipin_node_in_edges(const RRGraphView& rr_graph,

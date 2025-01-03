@@ -841,7 +841,8 @@ void RRGSB::add_opin_node(const RRNodeId& node, const e_side& node_side) {
 
 void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
                                     const e_side& chan_side,
-                                    const size_t& track_id) {
+                                    const size_t& track_id,
+                                    const bool is_3d_cb) {
     std::map<size_t, std::map<size_t, RREdgeId>> from_grid_edge_map;
     std::map<size_t, std::map<size_t, RREdgeId>> from_track_edge_map;
 
@@ -859,11 +860,6 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
      *  For each side, the edge from grid pins will be the 1st part
      *  while the edge from routing tracks will be the 2nd part
      */
-
-    /** Boolean to indicate if 3D CBs are being used
-     *  TODO: make variable a function parameter
-     */
-    bool is_3d_cb = true;
 
     for (const RREdgeId& edge : rr_graph.node_in_edges(chan_node)) {
         /* We care the source node of this edge, and it should be an input of the GSB!!! */
@@ -937,7 +933,7 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
     VTR_ASSERT(edge_counter == chan_node_in_edges_[size_t(chan_side)][track_id].size());
 }
 
-void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph) {
+void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph, const bool is_3d_cb) {
     /* Allocate here, as sort edge is optional, we do not allocate when adding nodes */
     chan_node_in_edges_.resize(get_num_sides());
 
@@ -949,7 +945,7 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph) {
             /* Only sort the output nodes and bypass passing wires */
             if ((OUT_PORT == chan_node_direction_[side][track_id])
                 && (false == is_sb_node_passing_wire(rr_graph, side_manager.get_side(), track_id))) {
-                sort_chan_node_in_edges(rr_graph, side_manager.get_side(), track_id);
+                sort_chan_node_in_edges(rr_graph, side_manager.get_side(), track_id, is_3d_cb);
             }
         }
     }
@@ -1108,7 +1104,7 @@ void RRGSB::sort_ipin_node_in_edges(const RRGraphView& rr_graph) {
     }
 }
 
-void RRGSB::build_cb_opin_nodes(const RRGraphView& rr_graph, bool is_3d_cb) {
+void RRGSB::build_cb_opin_nodes(const RRGraphView& rr_graph, const bool is_3d_cb) {
   for (t_rr_type cb_type : {CHANX, CHANY}) {
     size_t icb_type = cb_type == CHANX ? 0 : 1;
 
