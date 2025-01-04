@@ -31,6 +31,10 @@ enum e_side SideManager::get_opposite() const {
             return TOP;
         case LEFT:
             return RIGHT;
+        case ABOVE:
+            return UNDER;
+        case UNDER:
+            return ABOVE;
         default:
             return NUM_2D_SIDES;
     }
@@ -46,6 +50,8 @@ enum e_side SideManager::get_rotate_clockwise() const {
             return LEFT;
         case LEFT:
             return TOP;
+
+        // Above and under sides don't apply here
         default:
             return NUM_2D_SIDES;
     }
@@ -61,6 +67,8 @@ enum e_side SideManager::get_rotate_counterclockwise() const {
             return RIGHT;
         case LEFT:
             return BOTTOM;
+
+        //Above and under sides don't apply ere
         default:
             return NUM_2D_SIDES;
     }
@@ -83,6 +91,10 @@ size_t SideManager::to_size_t() const {
             return 2;
         case LEFT:
             return 3;
+        case ABOVE:
+            return 5;
+        case UNDER:
+            return 7;
         default:
             return 4;
     }
@@ -99,6 +111,10 @@ const char* SideManager::c_str() const {
             return "bottom";
         case LEFT:
             return "left";
+        case ABOVE:
+            return "above";
+        case UNDER:
+            return "under";
         default:
             return "invalid_side";
     }
@@ -119,6 +135,12 @@ std::string SideManager::to_string() const {
             break;
         case LEFT:
             ret.assign("left");
+            break;
+        case ABOVE:
+            ret.assign("above");
+            break;
+        case UNDER:
+            ret.assign("under");
             break;
         default:
             ret.assign("invalid_side");
@@ -142,6 +164,12 @@ void SideManager::set_side(size_t side) {
             return;
         case 3:
             side_ = LEFT;
+            return;
+        case 5:
+            side_ = ABOVE;
+            return;
+        case 7:
+            side_ = UNDER;
             return;
         default:
             side_ = NUM_2D_SIDES;
