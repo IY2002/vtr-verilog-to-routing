@@ -776,9 +776,10 @@ void t_rr_graph_storage::set_node_direction(RRNodeId id, Direction new_direction
 }
 
 void t_rr_graph_storage::add_node_side(RRNodeId id, e_side new_side) {
-    if (node_type(id) != IPIN && node_type(id) != OPIN) {
-        VTR_LOG_ERROR("Attempted to set RR node 'side' for non-channel type '%s'\n", node_type_string(id));
-    }
+    // commented out since for 3D vertical channels they also have a side
+    // if (node_type(id) != IPIN && node_type(id) != OPIN) {
+    //     VTR_LOG_ERROR("Attempted to set RR node 'side' for non-channel type '%s'\n", node_type_string(id));
+    // }
     std::bitset<NUM_2D_SIDES> side_bits = node_storage_[id].dir_side_.sides;
     side_bits[size_t(new_side)] = true;
     if (side_bits.to_ulong() > CHAR_MAX) {
