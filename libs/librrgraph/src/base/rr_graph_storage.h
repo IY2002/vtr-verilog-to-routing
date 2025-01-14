@@ -775,11 +775,12 @@ class t_rr_graph_storage {
         vtr::array_view_id<RRNodeId, const t_rr_node_data> node_storage,
         const RRNodeId& id,
         const e_side& side) {
-        auto& node_data = node_storage[id];
-        if (node_data.type_ != IPIN && node_data.type_ != OPIN) {
-            VTR_LOG_ERROR("Attempted to access RR node 'side' for non-IPIN/OPIN type '%s'",
-                          rr_node_typename[node_data.type_]);
-        }
+        // Commented out since in 3D the CHANX and CHANY interlayer nodes (None Direction) can also appear on a side 
+        // auto& node_data = node_storage[id];
+        // if (node_data.type_ != IPIN && node_data.type_ != OPIN) {
+        //     VTR_LOG_ERROR("Attempted to access RR node 'side' for non-IPIN/OPIN type '%s'",
+        //                   rr_node_typename[node_data.type_]);
+        // }
         // Return a vector showing only the sides that the node appears
         std::bitset<NUM_2D_SIDES> side_tt = node_storage[id].dir_side_.sides;
         return side_tt[size_t(side)];

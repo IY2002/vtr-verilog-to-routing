@@ -92,11 +92,11 @@ size_t SideManager::to_size_t() const {
         case LEFT:
             return 3;
         case ABOVE:
-            return 5;
-        case UNDER:
-            return 7;
-        default:
             return 4;
+        case UNDER:
+            return 5;
+        default:
+            return 6;
     }
 }
 

@@ -62,13 +62,18 @@ size_t RRGSB::get_max_chan_width() const {
     size_t max_chan_width = 0;
     for (size_t side = 0; side < get_num_sides(); ++side) {
         SideManager side_manager(side);
+
+        if (side == 4) side_manager.set_side(ABOVE);
+        else if (side == 5) side_manager.set_side(UNDER);
+
         max_chan_width = std::max(max_chan_width, get_chan_width(side_manager.get_side()));
     }
     return max_chan_width;
 }
 
 const RRChan& RRGSB::chan(const e_side& chan_side) const {
-    return chan_node_[size_t(chan_side)];
+    SideManager side_manager(chan_side);
+    return chan_node_[side_manager.to_size_t()];
 }
 
 /* Get the number of routing tracks of a X/Y-direction CB */
@@ -389,8 +394,9 @@ int RRGSB::get_cb_chan_node_index(const t_rr_type& cb_type, const RRNodeId& node
 
 /* Get the node index in the array, return -1 if not found */
 int RRGSB::get_chan_node_index(const e_side& node_side, const RRNodeId& node) const {
-    VTR_ASSERT(validate_side(node_side));
-    return chan_node_[size_t(node_side)].get_node_track_id(node);
+    SideManager side_manager(node_side);
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
+    return chan_node_[side_manager.to_size_t()].get_node_track_id(node);
 }
 
 /* Get the node index in the array, return -1 if not found */
@@ -404,14 +410,16 @@ int RRGSB::get_node_index(const RRGraphView& rr_graph,
     cnt = 0;
     ret = -1;
 
+    SideManager side_manager(node_side);
+
     /* Depending on the type of rr_node, we search different arrays */
     switch (rr_graph.node_type(node)) {
         case CHANX:
         case CHANY:
-            for (size_t inode = 0; inode < get_chan_width(node_side); ++inode) {
-                if ((node == chan_node_[size_t(node_side)].get_node(inode))
+            for (size_t inode = 0; inode < get_chan_width(side_manager.get_side()); ++inode) {
+                if ((node == chan_node_[side_manager.to_size_t()].get_node(inode))
                     /* Check if direction meets specification */
-                    && (node_direction == chan_node_direction_[size_t(node_side)][inode])) {
+                    && (node_direction == chan_node_direction_[side_manager.to_size_t()][inode])) {
                     cnt++;
                     ret = inode;
                     break;
@@ -419,8 +427,8 @@ int RRGSB::get_node_index(const RRGraphView& rr_graph,
             }
             break;
         case IPIN:
-            for (size_t inode = 0; inode < get_num_ipin_nodes(node_side); ++inode) {
-                if (node == ipin_node_[size_t(node_side)][inode]) {
+            for (size_t inode = 0; inode < get_num_ipin_nodes(side_manager.get_side()); ++inode) {
+                if (node == ipin_node_[size_t(side_manager.to_size_t())][inode]) {
                     cnt++;
                     ret = inode;
                     break;
@@ -428,8 +436,8 @@ int RRGSB::get_node_index(const RRGraphView& rr_graph,
             }
             break;
         case OPIN:
-            for (size_t inode = 0; inode < get_num_opin_nodes(node_side); ++inode) {
-                if (node == opin_node_[size_t(node_side)][inode]) {
+            for (size_t inode = 0; inode < get_num_opin_nodes(side_manager.get_side()); ++inode) {
+                if (node == opin_node_[size_t(side_manager.to_size_t())][inode]) {
                     cnt++;
                     ret = inode;
                     break;
@@ -464,6 +472,8 @@ void RRGSB::get_node_side_and_index(const RRGraphView& rr_graph,
      */
     for (side = 0; side < get_num_sides(); ++side) {
         side_manager.set_side(side);
+        if (side == 4) side_manager.set_side(ABOVE);
+        else if (side == 5) side_manager.set_side(UNDER);
         node_index = get_node_index(rr_graph, node, side_manager.get_side(), node_direction);
         if (-1 != node_index) {
             break;
@@ -512,7 +522,11 @@ bool RRGSB::is_sb_exist(const RRGraphView& rr_graph) const {
     size_t num_sides_contain_routing_wires = 0;
     size_t num_sides_contain_opin_nodes = 0;
     for (size_t side = 0; side < get_num_sides(); ++side) {
+        // if (side > 3) break; // only consider non 3D sides to determine if the SB exists, 3D sides won't exist on their own for now
         SideManager side_manager(side);
+        if (side == 4) side_manager.set_side(ABOVE);
+        else if (side == 5) side_manager.set_side(UNDER);
+
         if (0 != get_chan_width(side_manager.get_side())) {
             num_sides_contain_routing_wires++;
         }
@@ -529,6 +543,8 @@ bool RRGSB::is_sb_exist(const RRGraphView& rr_graph) const {
         size_t num_incoming_edges = 0;
         for (size_t side = 0; side < get_num_sides(); ++side) {
             SideManager side_manager(side);
+            if (side == 4) side_manager.set_side(ABOVE);
+            else if (side == 5) side_manager.set_side(UNDER);
             for (size_t itrack = 0; itrack < get_chan_width(side_manager.get_side()); ++itrack) {
                 if (OUT_PORT != get_chan_node_direction(side_manager.get_side(), itrack)) {
                     continue;
@@ -614,6 +630,8 @@ bool RRGSB::is_sb_mirrorable(const RRGraphView& rr_graph, const RRGSB& cand) con
     /* check the numbers/directionality of channel rr_nodes */
     for (size_t side = 0; side < get_num_sides(); ++side) {
         SideManager side_manager(side);
+        if (side == 4) side_manager.set_side(ABOVE);
+        else if (side == 5) side_manager.set_side(UNDER);
 
         /* Ensure we have the same channel width on this side */
         if (get_chan_width(side_manager.get_side()) != cand.get_chan_width(side_manager.get_side())) {
@@ -631,6 +649,8 @@ bool RRGSB::is_sb_mirrorable(const RRGraphView& rr_graph, const RRGSB& cand) con
     /* check the numbers of opin_rr_nodes */
     for (size_t side = 0; side < get_num_sides(); ++side) {
         SideManager side_manager(side);
+        if (side == 4) side_manager.set_side(ABOVE);
+        else if (side == 5) side_manager.set_side(UNDER);
 
         if (get_num_opin_nodes(side_manager.get_side()) != cand.get_num_opin_nodes(side_manager.get_side())) {
             return false;
@@ -745,6 +765,14 @@ vtr::Point<size_t> RRGSB::get_side_block_coordinate(const e_side& side) const {
             /* 3 == side */
             /* 4. Channel X [x][y] inputs */
             break;
+        case ABOVE:
+            /* 4 == side */
+            /* 5. Channel Z [x][y] inputs */
+            break;
+        case UNDER:
+            /* 5 == side */
+            /* 6. Channel Z [x][y] inputs */
+            break;
         default:
             VTR_LOG(" Invalid side!\n");
             exit(1);
@@ -771,27 +799,29 @@ void RRGSB::set(const RRGSB& src) {
     /* Copy vectors */
     for (size_t side = 0; side < src.get_num_sides(); ++side) {
         SideManager side_manager(side);
+        if (side == 4) side_manager.set_side(ABOVE);
+        else if (side == 5) side_manager.set_side(UNDER);
         /* Copy chan_nodes */
         /* skip if there is no channel width */
         if (0 < src.get_chan_width(side_manager.get_side())) {
-            this->chan_node_[side_manager.get_side()].set(src.chan_node_[side_manager.get_side()]);
+            this->chan_node_[side_manager.to_size_t()].set(src.chan_node_[side_manager.to_size_t()]);
             /* Copy chan_node_direction_*/
-            this->chan_node_direction_[side_manager.get_side()].clear();
+            this->chan_node_direction_[side_manager.to_size_t()].clear();
             for (size_t inode = 0; inode < src.get_chan_width(side_manager.get_side()); ++inode) {
-                this->chan_node_direction_[side_manager.get_side()].push_back(src.get_chan_node_direction(side_manager.get_side(), inode));
+                this->chan_node_direction_[side_manager.to_size_t()].push_back(src.get_chan_node_direction(side_manager.get_side(), inode));
             }
         }
 
         /* Copy opin_node and opin_node_grid_side_ */
-        this->opin_node_[side_manager.get_side()].clear();
+        this->opin_node_[side_manager.to_size_t()].clear();
         for (size_t inode = 0; inode < src.get_num_opin_nodes(side_manager.get_side()); ++inode) {
-            this->opin_node_[side_manager.get_side()].push_back(src.get_opin_node(side_manager.get_side(), inode));
+            this->opin_node_[side_manager.to_size_t()].push_back(src.get_opin_node(side_manager.get_side(), inode));
         }
 
         /* Copy ipin_node and ipin_node_grid_side_ */
-        this->ipin_node_[side_manager.get_side()].clear();
+        this->ipin_node_[side_manager.to_size_t()].clear();
         for (size_t inode = 0; inode < src.get_num_ipin_nodes(side_manager.get_side()); ++inode) {
-            this->ipin_node_[side_manager.get_side()].push_back(src.get_ipin_node(side_manager.get_side(), inode));
+            this->ipin_node_[side_manager.to_size_t()].push_back(src.get_ipin_node(side_manager.get_side(), inode));
         }
     }
 }
@@ -815,28 +845,31 @@ void RRGSB::add_chan_node(const e_side& node_side,
                           const RRChan& rr_chan,
                           const std::vector<enum PORTS>& rr_chan_dir) {
     /* Validate: 1. side is valid, the type of node is valid */
-    VTR_ASSERT(validate_side(node_side));
+    SideManager side_manager(node_side);
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* fill the dedicated element in the vector */
-    chan_node_[size_t(node_side)].set(rr_chan);
-    chan_node_direction_[size_t(node_side)].resize(rr_chan_dir.size());
+    chan_node_[side_manager.to_size_t()].set(rr_chan);
+    chan_node_direction_[side_manager.to_size_t()].resize(rr_chan_dir.size());
     for (size_t inode = 0; inode < rr_chan_dir.size(); ++inode) {
-        chan_node_direction_[size_t(node_side)][inode] = rr_chan_dir[inode];
+        chan_node_direction_[side_manager.to_size_t()][inode] = rr_chan_dir[inode];
     }
 }
 
 /* Add a node to the chan_node_ list and also assign its direction in chan_node_direction_ */
 void RRGSB::add_ipin_node(const RRNodeId& node, const e_side& node_side) {
-    VTR_ASSERT(validate_side(node_side));
+    SideManager side_manager(node_side);
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
     /* push pack the dedicated element in the vector */
-    ipin_node_[size_t(node_side)].push_back(node);
+    ipin_node_[side_manager.to_size_t()].push_back(node);
 }
 
 /* Add a node to the chan_node_ list and also assign its direction in chan_node_direction_ */
 void RRGSB::add_opin_node(const RRNodeId& node, const e_side& node_side) {
-    VTR_ASSERT(validate_side(node_side));
+    SideManager side_manager(node_side);
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
     /* push pack the dedicated element in the vector */
-    opin_node_[size_t(node_side)].push_back(node);
+    opin_node_[side_manager.to_size_t()].push_back(node);
 }
 
 void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
@@ -846,7 +879,9 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
     std::map<size_t, std::map<size_t, RREdgeId>> from_grid_edge_map;
     std::map<size_t, std::map<size_t, RREdgeId>> from_track_edge_map;
 
-    const RRNodeId& chan_node = chan_node_[size_t(chan_side)].get_node(track_id);
+    SideManager side_manager(chan_side);
+
+    const RRNodeId& chan_node = chan_node_[side_manager.to_size_t()].get_node(track_id);
 
     /* Count the edges and ensure every of them has been sorted */
     size_t edge_counter = 0;
@@ -917,7 +952,7 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
         for (size_t opin_id = 0; opin_id < opin_node_[side].size(); ++opin_id) {
             if ((0 < from_grid_edge_map.count(side))
                 && (0 < from_grid_edge_map.at(side).count(opin_id))) {
-                chan_node_in_edges_[size_t(chan_side)][track_id].push_back(from_grid_edge_map[side][opin_id]);
+                chan_node_in_edges_[side_manager.to_size_t()][track_id].push_back(from_grid_edge_map[side][opin_id]);
             }
         }
 
@@ -925,12 +960,12 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
         for (size_t itrack = 0; itrack < chan_node_[side].get_chan_width(); ++itrack) {
             if ((0 < from_track_edge_map.count(side))
                 && (0 < from_track_edge_map.at(side).count(itrack))) {
-                chan_node_in_edges_[size_t(chan_side)][track_id].push_back(from_track_edge_map[side][itrack]);
+                chan_node_in_edges_[side_manager.to_size_t()][track_id].push_back(from_track_edge_map[side][itrack]);
             }
         }
     }
 
-    VTR_ASSERT(edge_counter == chan_node_in_edges_[size_t(chan_side)][track_id].size());
+    VTR_ASSERT(edge_counter == chan_node_in_edges_[side_manager.to_size_t()][track_id].size());
 }
 
 void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph, const bool is_3d_cb) {
@@ -939,11 +974,13 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph, const bool is_3
 
     for (size_t side = 0; side < get_num_sides(); ++side) {
         SideManager side_manager(side);
+        if (side == 4) side_manager.set_side(ABOVE);
+        else if (side == 5) side_manager.set_side(UNDER);
         /* Bypass boundary GSBs here. When perimeter_cb option is on, Some GSBs may have only 1 side of CHANX or CHANY. There are no edges in the GSB, so we should skip them */
-        chan_node_in_edges_[side].resize(chan_node_[side].get_chan_width());
-        for (size_t track_id = 0; track_id < chan_node_[side].get_chan_width(); ++track_id) {
+        chan_node_in_edges_[side_manager.to_size_t()].resize(chan_node_[side_manager.to_size_t()].get_chan_width());
+        for (size_t track_id = 0; track_id < chan_node_[side_manager.to_size_t()].get_chan_width(); ++track_id) {
             /* Only sort the output nodes and bypass passing wires */
-            if ((OUT_PORT == chan_node_direction_[side][track_id])
+            if ((OUT_PORT == chan_node_direction_[side_manager.to_size_t()][track_id])
                 && (false == is_sb_node_passing_wire(rr_graph, side_manager.get_side(), track_id))) {
                 sort_chan_node_in_edges(rr_graph, side_manager.get_side(), track_id, is_3d_cb);
             }
@@ -957,9 +994,11 @@ void RRGSB::sort_ipin_node_in_edges(const RRGraphView& rr_graph,
     std::map<size_t, RREdgeId> from_track_edge_map;
     std::array<std::map<size_t, RREdgeId>, NUM_2D_SIDES> from_opin_edge_map;
 
-    e_side chan_side = get_cb_chan_side(ipin_side);
+    SideManager side_manager(ipin_side);
 
-    const RRNodeId& ipin_node = ipin_node_[size_t(ipin_side)][ipin_id];
+    e_side chan_side = get_cb_chan_side(side_manager.get_side());
+
+    const RRNodeId& ipin_node = ipin_node_[side_manager.to_size_t()][ipin_id];
 
     /* Count the edges and ensure every of them has been sorted */
     size_t edge_counter = 0;
@@ -1072,21 +1111,21 @@ void RRGSB::sort_ipin_node_in_edges(const RRGraphView& rr_graph,
     }
 
     /* Store the sorted edge */
-    for (size_t itrack = 0; itrack < chan_node_[size_t(chan_side)].get_chan_width(); ++itrack) {
+    for (size_t itrack = 0; itrack < chan_node_[side_manager.to_size_t()].get_chan_width(); ++itrack) {
         if (0 < from_track_edge_map.count(itrack)) {
-            ipin_node_in_edges_[size_t(ipin_side)][ipin_id].push_back(from_track_edge_map[itrack]);
+            ipin_node_in_edges_[side_manager.to_size_t()][ipin_id].push_back(from_track_edge_map[itrack]);
         }
     }
 
     for (e_side iside : {TOP, RIGHT, BOTTOM, LEFT}) {
         for (size_t ipin = 0; ipin < get_num_opin_nodes(iside); ++ipin) {
             if (0 < from_opin_edge_map[size_t(iside)].count(ipin)) {
-                ipin_node_in_edges_[size_t(ipin_side)][ipin_id].push_back(from_opin_edge_map[size_t(iside)][ipin]);
+                ipin_node_in_edges_[side_manager.to_size_t()][ipin_id].push_back(from_opin_edge_map[size_t(iside)][ipin]);
             }
         }
     }
 
-    VTR_ASSERT(edge_counter == ipin_node_in_edges_[size_t(ipin_side)][ipin_id].size());
+    VTR_ASSERT(edge_counter == ipin_node_in_edges_[side_manager.to_size_t()][ipin_id].size());
 }
 
 void RRGSB::sort_ipin_node_in_edges(const RRGraphView& rr_graph) {
@@ -1096,8 +1135,10 @@ void RRGSB::sort_ipin_node_in_edges(const RRGraphView& rr_graph) {
     for (t_rr_type cb_type : {CHANX, CHANY}) {
         for (e_side ipin_side : get_cb_ipin_sides(cb_type)) {
             SideManager side_manager(ipin_side);
-            ipin_node_in_edges_[size_t(ipin_side)].resize(ipin_node_[size_t(ipin_side)].size());
-            for (size_t ipin_id = 0; ipin_id < ipin_node_[size_t(ipin_side)].size(); ++ipin_id) {
+            if ((size_t) ipin_side == 4) side_manager.set_side(ABOVE);
+            else if ((size_t) ipin_side == 5) side_manager.set_side(UNDER);
+            ipin_node_in_edges_[side_manager.to_size_t()].resize(ipin_node_[side_manager.to_size_t()].size());
+            for (size_t ipin_id = 0; ipin_id < ipin_node_[side_manager.to_size_t()].size(); ++ipin_id) {
                 sort_ipin_node_in_edges(rr_graph, side_manager.get_side(), ipin_id);
             }
         }
@@ -1180,24 +1221,27 @@ void RRGSB::clear() {
 
 /* Clean the chan_width of a side */
 void RRGSB::clear_chan_nodes(const e_side& node_side) {
-    VTR_ASSERT(validate_side(node_side));
+    SideManager side_manager(node_side);
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
-    chan_node_[size_t(node_side)].clear();
-    chan_node_direction_[size_t(node_side)].clear();
+    chan_node_[side_manager.to_size_t()].clear();
+    chan_node_direction_[side_manager.to_size_t()].clear();
 }
 
 /* Clean the number of IPINs of a side */
 void RRGSB::clear_ipin_nodes(const e_side& node_side) {
-    VTR_ASSERT(validate_side(node_side));
+    SideManager side_manager(node_side);
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
-    ipin_node_[size_t(node_side)].clear();
+    ipin_node_[side_manager.to_size_t()].clear();
 }
 
 /* Clean the number of OPINs of a side */
 void RRGSB::clear_opin_nodes(const e_side& node_side) {
-    VTR_ASSERT(validate_side(node_side));
+    SideManager side_manager(node_side);
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
-    opin_node_[size_t(node_side)].clear();
+    opin_node_[side_manager.to_size_t()].clear();
 }
 
 /* Clean chan/opin/ipin nodes at one side */
@@ -1211,7 +1255,8 @@ void RRGSB::clear_one_side(const e_side& node_side) {
  * Internal Accessors: identify mirrors
  ***********************************************************************/
 size_t RRGSB::get_track_id_first_short_connection(const RRGraphView& rr_graph, const e_side& node_side) const {
-    VTR_ASSERT(validate_side(node_side));
+    SideManager side_manager(node_side);
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Walk through chan_nodes and find the first short connection */
     for (size_t inode = 0; inode < get_chan_width(node_side); ++inode) {
@@ -1252,37 +1297,41 @@ bool RRGSB::validate_side(const e_side& side) const {
 
 /* Check the track_id is valid for chan_node_ and chan_node_direction_ */
 bool RRGSB::validate_track_id(const e_side& side, const size_t& track_id) const {
-    if (false == validate_side(side)) {
+    SideManager side_manager(side);
+    if (false == validate_side((e_side) side_manager.to_size_t())) {
         return false;
     }
 
-    return ((track_id < chan_node_[size_t(side)].get_chan_width())
-            && (track_id < chan_node_direction_[size_t(side)].size()));
+    return ((track_id < chan_node_[side_manager.to_size_t()].get_chan_width())
+            && (track_id < chan_node_direction_[side_manager.to_size_t()].size()));
 }
 
 /* Check the opin_node_id is valid for opin_node_ and opin_node_grid_side_ */
 bool RRGSB::validate_opin_node_id(const e_side& side, const size_t& node_id) const {
-    if (false == validate_side(side)) {
+    SideManager side_manager(side);
+    if (false == validate_side((e_side) side_manager.to_size_t())) {
         return false;
     }
-    return (node_id < opin_node_[size_t(side)].size());
+    return (node_id < opin_node_[side_manager.to_size_t()].size());
 }
 
 /* Check the opin_node_id is valid for opin_node_ and opin_node_grid_side_ */
 bool RRGSB::validate_cb_opin_node_id(const t_rr_type& cb_type, const e_side& side, const size_t& node_id) const {
-    if (false == validate_side(side)) {
+    SideManager side_manager(side);
+    if (false == validate_side((e_side) side_manager.to_size_t())) {
         return false;
     }
     size_t icb_type = get_cb_opin_type_id(cb_type);
-    return (node_id < cb_opin_node_[icb_type][size_t(side)].size());
+    return (node_id < cb_opin_node_[icb_type][side_manager.to_size_t()].size());
 }
 
 /* Check the ipin_node_id is valid for opin_node_ and opin_node_grid_side_ */
 bool RRGSB::validate_ipin_node_id(const e_side& side, const size_t& node_id) const {
-    if (false == validate_side(side)) {
+    SideManager side_manager(side);
+    if (false == validate_side((e_side) side_manager.to_size_t())) {
         return false;
     }
-    return (node_id < ipin_node_[size_t(side)].size());
+    return (node_id < ipin_node_[side_manager.to_size_t()].size());
 }
 
 bool RRGSB::validate_cb_type(const t_rr_type& cb_type) const {
