@@ -53,7 +53,7 @@ class RRGSB {
     RRGSB(); /* Default constructor */
   public:    /* Accessors */
     /* Get the number of sides of this SB */
-    size_t get_num_sides() const;
+    size_t get_num_sides(bool include_3d_sides=false) const;
 
     /* Get the number of routing tracks on a side */
     size_t get_chan_width(const e_side& side) const;

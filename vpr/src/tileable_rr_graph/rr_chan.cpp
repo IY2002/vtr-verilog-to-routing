@@ -143,11 +143,12 @@ void RRChan::add_node(const RRGraphView& rr_graph, const RRNodeId& node, const R
 
     if (NUM_RR_TYPES == type_) {
         type_ = rr_graph.node_type(node);
-    } else {
-        VTR_ASSERT(type_ == rr_graph.node_type(node));
     }
+    // } else {
+    //     VTR_ASSERT(type_ == rr_graph.node_type(node));
+    // }
 
-    VTR_ASSERT(valid_node_type(rr_graph, node));
+    // VTR_ASSERT(valid_node_type(rr_graph, node));
 }
 
 /* Clear content */

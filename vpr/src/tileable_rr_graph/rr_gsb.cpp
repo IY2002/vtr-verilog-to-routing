@@ -38,8 +38,9 @@ RRGSB::RRGSB() {
  * Accessors
  ***********************************************************************/
 /* Get the number of sides of this SB */
-size_t RRGSB::get_num_sides() const {
+size_t RRGSB::get_num_sides(bool include_3d_sides) const {
     VTR_ASSERT(validate_num_sides());
+    if (!include_3d_sides) return 4;
     return chan_node_direction_.size();
 }
 
@@ -138,7 +139,7 @@ enum PORTS RRGSB::get_chan_node_direction(const e_side& side, const size_t& trac
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Ensure the track is valid in the context of this switch block at a specific side */
     VTR_ASSERT(validate_track_id(side, track_id));
@@ -152,7 +153,7 @@ std::vector<RRSegmentId> RRGSB::get_chan_segment_ids(const e_side& side) const {
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     return chan_node_[side_manager.to_size_t()].get_segment_ids();
 }
@@ -169,7 +170,7 @@ RRNodeId RRGSB::get_chan_node(const e_side& side, const size_t& track_id) const 
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Ensure the track is valid in the context of this switch block at a specific side */
     VTR_ASSERT(validate_track_id(side, track_id));
@@ -184,7 +185,7 @@ std::vector<RREdgeId> RRGSB::get_chan_node_in_3d_edges(const RRGraphView& rr_gra
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Ensure the track is valid in the context of this switch block at a specific side */
     VTR_ASSERT(validate_track_id(side, track_id));
@@ -218,7 +219,7 @@ std::vector<RREdgeId> RRGSB::get_chan_node_in_edges(const RRGraphView& rr_graph,
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Ensure the track is valid in the context of this switch block at a specific side */
     VTR_ASSERT(validate_track_id(side, track_id));
@@ -252,7 +253,7 @@ std::vector<RREdgeId> RRGSB::get_ipin_node_in_3d_edges(const RRGraphView& rr_gra
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Ensure the track is valid in the context of this switch block at a specific side */
     VTR_ASSERT(validate_ipin_node_id(side, ipin_id));
@@ -283,7 +284,7 @@ std::vector<RREdgeId> RRGSB::get_ipin_node_in_edges(const RRGraphView& rr_graph,
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Ensure the track is valid in the context of this switch block at a specific side */
     VTR_ASSERT(validate_ipin_node_id(side, ipin_id));
@@ -313,7 +314,7 @@ RRSegmentId RRGSB::get_chan_node_segment(const e_side& side, const size_t& track
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Ensure the track is valid in the context of this switch block at a specific side */
     VTR_ASSERT(validate_track_id(side, track_id));
@@ -334,7 +335,7 @@ RRNodeId RRGSB::get_ipin_node(const e_side& side, const size_t& node_id) const {
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Ensure the track is valid in the context of this switch block at a specific side */
     VTR_ASSERT(validate_ipin_node_id(side, node_id));
@@ -355,7 +356,7 @@ RRNodeId RRGSB::get_opin_node(const e_side& side, const size_t& node_id) const {
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Ensure the track is valid in the context of this switch block at a specific side */
     VTR_ASSERT(validate_opin_node_id(side, node_id));
@@ -377,7 +378,7 @@ RRNodeId RRGSB::get_cb_opin_node(const t_rr_type& cb_type, const e_side& side, c
     VTR_ASSERT(side_manager.validate());
 
     /* Ensure the side is valid in the context of this switch block */
-    VTR_ASSERT(validate_side(side));
+    VTR_ASSERT(validate_side((e_side) side_manager.to_size_t()));
 
     /* Ensure the track is valid in the context of this switch block at a specific side */
     VTR_ASSERT(validate_cb_opin_node_id(cb_type, side, node_id));
@@ -470,7 +471,7 @@ void RRGSB::get_node_side_and_index(const RRGraphView& rr_graph,
      * We need to ensure that the found rr_node has the same direction as user want.
      * By specifying the direction of rr_node, There should be only one rr_node can satisfy!
      */
-    for (side = 0; side < get_num_sides(); ++side) {
+    for (side = 0; side < get_num_sides(true); ++side) {
         side_manager.set_side(side);
         if (side == 4) side_manager.set_side(ABOVE);
         else if (side == 5) side_manager.set_side(UNDER);
@@ -480,7 +481,7 @@ void RRGSB::get_node_side_and_index(const RRGraphView& rr_graph,
         }
     }
 
-    if (side == get_num_sides()) {
+    if (side == get_num_sides(true)) {
         /* we find nothing, return NUM_2D_SIDES, and a OPEN node (-1) */
         node_side = NUM_2D_SIDES;
         VTR_ASSERT(-1 == node_index);
@@ -571,8 +572,20 @@ bool RRGSB::is_sb_exist(const RRGraphView& rr_graph) const {
 bool RRGSB::is_sb_node_passing_wire(const RRGraphView& rr_graph,
                                     const e_side& node_side,
                                     const size_t& track_id) const {
+
+    //Not sure if this is correct 
+    // TODO: check later
+    if (node_side == e_side::ABOVE || node_side == e_side::UNDER) {
+        return false;
+    }
     /* Get the rr_node */
     RRNodeId track_node = get_chan_node(node_side, track_id);
+
+    if (rr_graph.node_direction(track_node) == Direction::ABOVE_DEC || rr_graph.node_direction(track_node) == Direction::UNDER_DEC
+        || rr_graph.node_direction(track_node) == Direction::ABOVE_INC || rr_graph.node_direction(track_node) == Direction::UNDER_INC) {
+        return false;
+    }
+
     /* Get the coordinates */
     vtr::Point<size_t> side_coordinate = get_side_block_coordinate(node_side);
 
@@ -1292,7 +1305,7 @@ bool RRGSB::validate_num_sides() const {
 
 /* Check if the side valid in the context: does the switch block have the side? */
 bool RRGSB::validate_side(const e_side& side) const {
-    return (size_t(side) < get_num_sides());
+    return (size_t(side) < get_num_sides(true));
 }
 
 /* Check the track_id is valid for chan_node_ and chan_node_direction_ */

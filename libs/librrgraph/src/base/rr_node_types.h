@@ -44,13 +44,17 @@ enum class Direction : unsigned char {
     DEC = 1,
     BIDIR = 2,
     NONE = 3,
+    ABOVE_INC = 4,
+    ABOVE_DEC = 5,
+    UNDER_INC = 6,
+    UNDER_DEC = 7,
     NUM_DIRECTIONS
 };
 
-constexpr std::array<const char*, static_cast<int>(Direction::NUM_DIRECTIONS)> DIRECTION_STRING = {{"INC_DIRECTION", "DEC_DIRECTION", "BI_DIRECTION", "NONE"}};
+constexpr std::array<const char*, static_cast<int>(Direction::NUM_DIRECTIONS)> DIRECTION_STRING = {{"INC_DIRECTION", "DEC_DIRECTION", "BI_DIRECTION", "NONE", "ABOVE_INC_DIRECTION", "ABOVE_DEC_DIRECTION", "UNDER_INC_DIRECTION", "UNDER_DEC_DIRECTION"}};
 
 //this array is used in rr_graph_storage.cpp so that node_direction_string() can return a const std::string&
-const std::array<std::string, static_cast<int>(Direction::NUM_DIRECTIONS)> CONST_DIRECTION_STRING = {{"INC_DIR", "DEC_DIR", "BI_DIR", "NONE"}};
+const std::array<std::string, static_cast<int>(Direction::NUM_DIRECTIONS)> CONST_DIRECTION_STRING = {{"INC_DIR", "DEC_DIR", "BI_DIR", "NONE", "ABOVE_INC_DIR", "ABOVE_DEC_DIR", "UNDER_INC_DIR", "UNDER_DEC_DIR"}};
 
 // Node reordering algorithms for rr_nodes
 enum e_rr_node_reorder_algorithm {
