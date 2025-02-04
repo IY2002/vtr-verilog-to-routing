@@ -77,7 +77,8 @@ include(FilesToDirs)
 #
 #
 
-set(CMAKE_BUILD_TYPE Debug)
+# set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 
 #Set the default build type if not specified
 if(NOT CMAKE_BUILD_TYPE)
