@@ -887,8 +887,7 @@ void RRGSB::add_opin_node(const RRNodeId& node, const e_side& node_side) {
 
 void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
                                     const e_side& chan_side,
-                                    const size_t& track_id,
-                                    const bool is_3d_cb) {
+                                    const size_t& track_id) {
     std::map<size_t, std::map<size_t, RREdgeId>> from_grid_edge_map;
     std::map<size_t, std::map<size_t, RREdgeId>> from_track_edge_map;
 
@@ -912,13 +911,6 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
     for (const RREdgeId& edge : rr_graph.node_in_edges(chan_node)) {
         /* We care the source node of this edge, and it should be an input of the GSB!!! */
         const RRNodeId& src_node = rr_graph.edge_src_node(edge);
-
-        /*  If the connection is interlayer then ignore it since we only care about 2D connections.
-            3D connections are only done inside the Switch Box.
-        */
-        if (!is_3d_cb && rr_graph.node_layer(src_node) != rr_graph.node_layer(chan_node)){
-            continue;
-        }
 
         e_side side = NUM_2D_SIDES;
         int index = 0;
@@ -981,7 +973,7 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph,
     VTR_ASSERT(edge_counter == chan_node_in_edges_[side_manager.to_size_t()][track_id].size());
 }
 
-void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph, const bool is_3d_cb) {
+void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph) {
     /* Allocate here, as sort edge is optional, we do not allocate when adding nodes */
     chan_node_in_edges_.resize(get_num_sides());
 
@@ -995,7 +987,7 @@ void RRGSB::sort_chan_node_in_edges(const RRGraphView& rr_graph, const bool is_3
             /* Only sort the output nodes and bypass passing wires */
             if ((OUT_PORT == chan_node_direction_[side_manager.to_size_t()][track_id])
                 && (false == is_sb_node_passing_wire(rr_graph, side_manager.get_side(), track_id))) {
-                sort_chan_node_in_edges(rr_graph, side_manager.get_side(), track_id, is_3d_cb);
+                sort_chan_node_in_edges(rr_graph, side_manager.get_side(), track_id);
             }
         }
     }
@@ -1158,7 +1150,7 @@ void RRGSB::sort_ipin_node_in_edges(const RRGraphView& rr_graph) {
     }
 }
 
-void RRGSB::build_cb_opin_nodes(const RRGraphView& rr_graph, const bool is_3d_cb) {
+void RRGSB::build_cb_opin_nodes(const RRGraphView& rr_graph) {
   for (t_rr_type cb_type : {CHANX, CHANY}) {
     size_t icb_type = cb_type == CHANX ? 0 : 1;
 
@@ -1172,10 +1164,10 @@ void RRGSB::build_cb_opin_nodes(const RRGraphView& rr_graph, const bool is_3d_cb
 
         std::vector<RREdgeId> driver_rr_edges = get_ipin_node_in_edges(rr_graph, cb_ipin_side, inode);
 
-        if (is_3d_cb){
-            std::vector<RREdgeId> driver_rr_edges_3d = get_ipin_node_in_3d_edges(rr_graph, cb_ipin_side, inode);
-            driver_rr_edges.insert(driver_rr_edges.end(), driver_rr_edges_3d.begin(), driver_rr_edges_3d.end());
-        }
+        // Add 3D edges if needed, need to make sure that it's not outputting to both layers but only same layer.
+        std::vector<RREdgeId> driver_rr_edges_3d = get_ipin_node_in_3d_edges(rr_graph, cb_ipin_side, inode);
+        driver_rr_edges.insert(driver_rr_edges.end(), driver_rr_edges_3d.begin(), driver_rr_edges_3d.end());
+
 
         for (const RREdgeId curr_edge : driver_rr_edges) {
 
