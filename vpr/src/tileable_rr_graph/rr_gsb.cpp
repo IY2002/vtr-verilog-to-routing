@@ -77,6 +77,31 @@ const RRChan& RRGSB::chan(const e_side& chan_side) const {
     return chan_node_[side_manager.to_size_t()];
 }
 
+const RRChan& RRGSB::cb_input_chan(const t_rr_type& cb_type) const {
+
+    if (cb_type == CHANX) {
+        return cb_input_chan_[0];
+    } else if (cb_type == CHANY) {
+        return cb_input_chan_[1];
+    } else {
+        VTR_LOG("Invalid type of connection block!\n");
+        exit(1);
+    }
+}
+
+const RRChan& RRGSB::cb_output_chan(const t_rr_type& cb_type) const {
+
+    if (cb_type == CHANX) {
+        return cb_output_chan_[0];
+    } else if (cb_type == CHANY) {
+        return cb_output_chan_[1];
+    } else {
+        VTR_LOG("Invalid type of connection block!\n");
+        exit(1);
+    }
+}
+
+
 /* Get the number of routing tracks of a X/Y-direction CB */
 size_t RRGSB::get_cb_chan_width(const t_rr_type& cb_type) const {
     return get_chan_width(get_cb_chan_side(cb_type));
@@ -391,6 +416,30 @@ RRNodeId RRGSB::get_cb_opin_node(const t_rr_type& cb_type, const e_side& side, c
 int RRGSB::get_cb_chan_node_index(const t_rr_type& cb_type, const RRNodeId& node) const {
     enum e_side chan_side = get_cb_chan_side(cb_type);
     return get_chan_node_index(chan_side, node);
+}
+
+int RRGSB::get_cb_input_chan_node_index(const t_rr_type& cb_type, const RRNodeId& node) const {
+
+    if (cb_type == CHANX) {
+        return cb_input_chan_[0].get_node_track_id(node);
+    } else if (cb_type == CHANY) {
+        return cb_input_chan_[1].get_node_track_id(node);
+    } else {
+        VTR_LOG("Invalid side of connection block!\n");
+        exit(1);
+    }
+}
+
+int RRGSB::get_cb_output_chan_node_index(const t_rr_type& cb_type, const RRNodeId& node) const {
+
+    if (cb_type == CHANX) {
+        return cb_output_chan_[0].get_node_track_id(node);
+    } else if (cb_type == CHANY) {
+        return cb_output_chan_[1].get_node_track_id(node);
+    } else {
+        VTR_LOG("Invalid side of connection block!\n");
+        exit(1);
+    }
 }
 
 /* Get the node index in the array, return -1 if not found */
@@ -851,6 +900,9 @@ void RRGSB::init_num_sides(const size_t& num_sides) {
     chan_node_direction_.resize(num_sides);
     ipin_node_.resize(num_sides);
     opin_node_.resize(num_sides);
+    // one for each cb type
+    cb_input_chan_.resize(2);
+    cb_output_chan_.resize(2);
 }
 
 /* Add a node to the chan_node_ list and also assign its direction in chan_node_direction_ */
@@ -867,6 +919,32 @@ void RRGSB::add_chan_node(const e_side& node_side,
     for (size_t inode = 0; inode < rr_chan_dir.size(); ++inode) {
         chan_node_direction_[side_manager.to_size_t()][inode] = rr_chan_dir[inode];
     }
+}
+
+void RRGSB::add_cb_input_chan(const t_rr_type& cb_type,
+                             const RRChan& rr_chan) {
+
+    if (cb_type == CHANX) {
+        cb_input_chan_[0].set(rr_chan);
+    } else if (cb_type == CHANY) {
+        cb_input_chan_[1].set(rr_chan);
+    } else {
+        VTR_LOG("Invalid type for cb input chan\n");
+        exit(1);
+    }
+}
+
+void RRGSB::add_cb_output_chan(const t_rr_type& cb_type,
+    const RRChan& rr_chan) {
+
+if (cb_type == CHANX) {
+cb_output_chan_[0].set(rr_chan);
+} else if (cb_type == CHANY) {
+cb_output_chan_[1].set(rr_chan);
+} else {
+VTR_LOG("Invalid type for cb output chan\n");
+exit(1);
+}
 }
 
 /* Add a node to the chan_node_ list and also assign its direction in chan_node_direction_ */
@@ -1249,11 +1327,32 @@ void RRGSB::clear_opin_nodes(const e_side& node_side) {
     opin_node_[side_manager.to_size_t()].clear();
 }
 
+/* Clean the CB input channels on one side */
+void RRGSB::clear_cb_chan_nodes(const t_rr_type& cb_type) {
+
+    if (cb_type == CHANX) {
+        cb_input_chan_[0].clear();
+        cb_output_chan_[0].clear();
+    } else if (cb_type == CHANY) {
+        cb_input_chan_[1].clear();
+        cb_output_chan_[1].clear();
+    } else {
+        VTR_LOG("Invalid type for cb input/output chan\n");
+        exit(1);
+    }
+}
+
 /* Clean chan/opin/ipin nodes at one side */
 void RRGSB::clear_one_side(const e_side& node_side) {
     clear_chan_nodes(node_side);
     clear_ipin_nodes(node_side);
     clear_opin_nodes(node_side);
+    if (node_side == TOP || node_side == BOTTOM){
+        clear_cb_chan_nodes(CHANY);
+    } else if (node_side == LEFT || node_side == RIGHT){
+        clear_cb_chan_nodes(CHANX);
+    }
+    
 }
 
 /************************************************************************

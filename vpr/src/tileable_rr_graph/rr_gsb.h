@@ -70,6 +70,12 @@ class RRGSB {
     /* Return read-only object of the routing channels with a given side */
     const RRChan& chan(const e_side& chan_side) const;
 
+    /* Return read-only object of the CB input channels for a given type*/
+    const RRChan& cb_input_chan(const t_rr_type& cb_type) const;
+
+    /* Return read-only object of the CB output channels for a given type*/
+    const RRChan& cb_output_chan(const t_rr_type& cb_type) const;
+
     /* Get the sides of CB ipins in the array */
     std::vector<enum e_side> get_cb_ipin_sides(const t_rr_type& cb_type) const;
     /* Get the sides of CB opins in the array, OPINs can only be at the same sides of IPINs. Differently, they are inputs to a connection block */
@@ -128,6 +134,10 @@ class RRGSB {
     RRNodeId get_cb_opin_node(const t_rr_type& cb_type, const e_side& side, const size_t& node_id) const;
 
     int get_cb_chan_node_index(const t_rr_type& cb_type, const RRNodeId& node) const;
+
+    int get_cb_input_chan_node_index(const t_rr_type& cb_type, const RRNodeId& node) const;
+
+    int get_cb_output_chan_node_index(const t_rr_type& cb_type, const RRNodeId& node) const;
 
     int get_chan_node_index(const e_side& node_side, const RRNodeId& node) const;
 
@@ -196,6 +206,14 @@ class RRGSB {
     void add_opin_node(const RRNodeId& node,
                        const e_side& node_side);
 
+    /* Add a channel to the cb_input_chan_ list */
+    void add_cb_input_chan(const t_rr_type& cb_type,
+                          const RRChan& rr_chan);
+
+    /* Add a channel to the cb_output_chan_ list */
+    void add_cb_output_chan(const t_rr_type& cb_type,
+      const RRChan& rr_chan);
+
     /* Sort all the incoming edges for routing channel rr_node */
     void sort_chan_node_in_edges(const RRGraphView& rr_graph);
     /* Sort all the incoming edges for input pin rr_node */
@@ -214,6 +232,9 @@ class RRGSB {
 
     /* Clean the number of OPINs of a side */
     void clear_opin_nodes(const e_side& node_side);
+
+    /* Clean CB input and output channel for one type */
+    void clear_cb_chan_nodes(const t_rr_type& cb_type);
 
     /* Clean chan/opin/ipin nodes at one side */
     void clear_one_side(const e_side& node_side);
@@ -279,6 +300,13 @@ class RRGSB {
      * Each CB may have OPINs from all sides
      */
     std::array<std::array<std::vector<RRNodeId>, NUM_2D_SIDES>, 2> cb_opin_node_;
+
+    // Vector to account for 3D CB channels, they only connect to IPINs and not to other channels on this layer,
+    // Their direction is know as being INPUT since they only exist to connect to this layer's IPINs
+    // Vector is indexed by side
+    std::vector<RRChan> cb_input_chan_;
+
+    std::vector<RRChan> cb_output_chan_;
 };
 
 #endif
