@@ -454,7 +454,12 @@ size_t t_rr_graph_storage::count_rr_switches(
         for (auto edge_switch : vtr::Range<decltype(edge_switch_)::const_iterator>(
                  edge_switch_.begin() + first_edge_offset,
                  edge_switch_.begin() + last_edge_offset)) {
-            arch_switch_counts[edge_switch] += 1;
+            if (edge_switch < arch_switch_counts.size()) {
+                arch_switch_counts[edge_switch] += 1;
+            } else {
+                // Handle the error case, e.g., log an error or throw an exception
+                VTR_LOG_ERROR("edge_switch index out of bounds: %d\n", edge_switch);
+            }
         }
 
         for (size_t iswitch = 0; iswitch < arch_switch_counts.size(); ++iswitch) {
@@ -490,7 +495,7 @@ size_t t_rr_graph_storage::count_rr_switches(
         }
     }
 
-    return num_rr_switches;
+    return (size_t) num_rr_switches;
 }
 
 void t_rr_graph_storage::remap_rr_node_switch_indices(const t_arch_switch_fanin& switch_fanin) {
@@ -504,7 +509,17 @@ void t_rr_graph_storage::remap_rr_node_switch_indices(const t_arch_switch_fanin&
         }
 
         RRNodeId to_node = edge_dest_node_[edge];
+        if ((size_t) to_node >= node_fan_in_.size()) {
+            VTR_LOG_ERROR("to_node index out of bounds: %d\n", to_node);
+            continue;
+        }
+
         int switch_index = edge_switch_[edge];
+        if (switch_index >= switch_fanin.size()) {
+            VTR_LOG_ERROR("switch_index out of bounds: %d\n", switch_index);
+            continue;
+        }
+
         int fanin = node_fan_in_[to_node];
 
         if (switch_fanin[switch_index].count(UNDEFINED) == 1) {
