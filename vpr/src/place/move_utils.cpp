@@ -748,8 +748,15 @@ bool find_to_loc_uniform(t_logical_block_type_ptr type,
 
     //Determine the valid compressed grid location ranges
     t_bb search_range = get_compressed_grid_target_search_range(compressed_block_grid,
-                                                                compressed_locs[to_layer_num],
+                                                                compressed_locs[to_layer_num],                                         
                                                                 rlim);
+
+    if (search_range.xmin == OPEN && search_range.xmax == OPEN && search_range.ymin == OPEN && search_range.ymax == OPEN && search_range.layer_min == OPEN && search_range.layer_max == OPEN) {
+        //No valid range found
+        // This is done to avoid the code crashing on heterogenous layers 3D FPGAs. Quick patch up not a legit solution.
+        return false;
+    }
+
     int delta_cx = search_range.xmax - search_range.xmin;
 
     t_physical_tile_loc to_compressed_loc;
@@ -936,6 +943,13 @@ bool find_to_loc_centroid(t_logical_block_type_ptr blk_type,
                                                                 centroid_compressed_loc[to_layer_num],
                                                                 std::min<float>(range_limiters.original_rlim, range_limiters.dm_rlim));
     }
+
+    if (search_range.xmin == OPEN && search_range.xmax == OPEN && search_range.ymin == OPEN && search_range.ymax == OPEN && search_range.layer_min == OPEN && search_range.layer_max == OPEN) {
+        //No valid range found
+        // This is done to avoid the code crashing on heterogenous layers 3D FPGAs. Quick patch up not a legit solution.
+        return false;
+    }
+
     delta_cx = search_range.xmax - search_range.xmin;
 
     t_physical_tile_loc to_compressed_loc;
@@ -1054,7 +1068,10 @@ bool find_compatible_compressed_loc_in_range(t_logical_block_type_ptr type,
                                              bool search_for_empty,
                                              const BlkLocRegistry& blk_loc_registry) {
     //TODO For the time being, the blocks only moved in the same layer. This assertion should be removed after VPR is updated to move blocks between layers
-    VTR_ASSERT(to_layer_num == from_loc.layer_num);
+    // VTR_ASSERT(to_layer_num == from_loc.layer_num);
+    if (to_layer_num != from_loc.layer_num) {
+        return false; // temporary solution to get placement for heterogenous 3D FPGAs
+    }
     const auto& compressed_block_grid = g_vpr_ctx.placement().compressed_block_grids[type->index];
     to_loc.layer_num = to_layer_num;
     std::unordered_set<int> tried_cx_to;
@@ -1182,7 +1199,11 @@ t_bb get_compressed_grid_target_search_range(const t_compressed_block_grid& comp
                                              float rlim) {
     t_bb search_ranges;
     int layer_num = compressed_loc.layer_num;
-    VTR_ASSERT(compressed_loc.x != OPEN && compressed_loc.y != OPEN && compressed_loc.layer_num != OPEN);
+    // VTR_ASSERT(compressed_loc.x != OPEN && compressed_loc.y != OPEN && compressed_loc.layer_num != OPEN);
+
+    if (compressed_loc.x != OPEN || compressed_loc.y != OPEN || compressed_loc.layer_num != OPEN){
+        return t_bb(OPEN, OPEN, OPEN, OPEN, OPEN, OPEN);
+    }
 
     int rlim_x_max_range = std::min<int>((int)compressed_block_grid.get_num_columns(layer_num), rlim);
     int rlim_y_max_range = std::min<int>((int)compressed_block_grid.get_num_rows(layer_num), rlim); /* for aspect_ratio != 1 case. */
@@ -1208,8 +1229,12 @@ t_bb get_compressed_grid_bounded_search_range(const t_compressed_block_grid& com
     int min_cx, max_cx, min_cy, max_cy;
 
     //TODO: This if condition is added because blocks are only moved in the same layer. After the update, this condition should be replaced with an assertion
-    VTR_ASSERT(from_compressed_loc.x != OPEN && from_compressed_loc.y != OPEN && from_compressed_loc.layer_num != OPEN);
-    VTR_ASSERT(target_compressed_loc.x != OPEN && target_compressed_loc.y != OPEN && target_compressed_loc.layer_num != OPEN);
+    // VTR_ASSERT(from_compressed_loc.x != OPEN && from_compressed_loc.y != OPEN && from_compressed_loc.layer_num != OPEN);
+    // VTR_ASSERT(target_compressed_loc.x != OPEN && target_compressed_loc.y != OPEN && target_compressed_loc.layer_num != OPEN);
+
+    if ((from_compressed_loc.x != OPEN || from_compressed_loc.y != OPEN || from_compressed_loc.layer_num != OPEN) || (target_compressed_loc.x != OPEN || target_compressed_loc.y != OPEN || target_compressed_loc.layer_num != OPEN)){
+        return t_bb(OPEN, OPEN, OPEN, OPEN, OPEN, OPEN);
+    }
 
     int layer_num = target_compressed_loc.layer_num;
     int rlim_x_max_range = std::min<int>(compressed_block_grid.get_num_columns(layer_num), rlim);

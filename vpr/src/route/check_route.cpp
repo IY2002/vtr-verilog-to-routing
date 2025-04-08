@@ -313,6 +313,11 @@ static bool check_adjacent(RRNodeId from_node, RRNodeId to_node, bool is_flat) {
     }
 
     // Layer numbers are should not be more than one layer apart for connected nodes
+    if (abs(from_layer - to_layer) > 1){
+        printf("from_layer: %d, to_layer: %d, from_node: %d, to_node: %d\n", from_layer, to_layer);
+        printf("from_xlow: %d, from_ylow: %d, from_xhigh: %d, from_yhigh: %d\n", from_xlow, from_ylow, from_xhigh, from_yhigh);
+        printf("to_xlow: %d, to_ylow: %d, to_xhigh: %d, to_yhigh: %d\n", to_xlow, to_ylow, to_xhigh, to_yhigh);
+    }
     VTR_ASSERT(abs(from_layer - to_layer) <= 1);
     switch (from_type) {
         case SOURCE:

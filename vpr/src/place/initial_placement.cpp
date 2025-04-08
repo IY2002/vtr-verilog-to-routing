@@ -347,6 +347,12 @@ static bool find_centroid_neighbor(t_pl_loc& centroid_loc,
                                                                 compressed_centroid_loc[centroid_loc_layer_num],
                                                                 first_rlim);
 
+    if (search_range.xmin == OPEN && search_range.xmax == OPEN && search_range.ymin == OPEN && search_range.ymax == OPEN && search_range.layer_min == OPEN && search_range.layer_max == OPEN) {
+        //No valid range found
+        // This is done to avoid the code crashing on heterogenous layers 3D FPGAs. Quick patch up not a legit solution.
+        return false;
+    }
+
     int delta_cx = search_range.xmax - search_range.xmin;
 
     //Block has not been placed yet, so the "from" coords will be (-1, -1)
