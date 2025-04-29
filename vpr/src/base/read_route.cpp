@@ -313,7 +313,7 @@ static void process_nodes(const Netlist<>& net_list, std::ifstream& fp, ClusterN
                     vpr_throw(VPR_ERROR_ROUTE, filename, lineno,
                               "Node %d is of the wrong type", inode);
                 }
-            } else if (tokens[2] == "CHANX" || tokens[2] == "CHANY") {
+            } else if (tokens[2] == "CHANX" || tokens[2] == "CHANY" || tokens[2] == "CHANZ") {
                 if (tokens[4 + offset] != "Track:") {
                     vpr_throw(VPR_ERROR_ROUTE, filename, lineno,
                               "A %s node have to have track info", tokens[2].c_str());

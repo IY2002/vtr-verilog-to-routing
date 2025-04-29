@@ -1660,7 +1660,7 @@ bool verify_rr_node_indices(const DeviceGrid& grid,
                 for (t_rr_type rr_type : RR_TYPES) {
                     /* Get the list of nodes at a specific location (x, y) */
                     std::vector<RRNodeId> nodes_from_lookup;
-                    if (rr_type == CHANX || rr_type == CHANY) {
+                    if (rr_type == CHANX || rr_type == CHANY || rr_type == CHANZ) {
                         nodes_from_lookup = rr_graph.node_lookup().find_channel_nodes(l, x, y, rr_type);
                     } else {
                         nodes_from_lookup = rr_graph.node_lookup().find_grid_nodes_at_all_sides(l, x, y, rr_type);

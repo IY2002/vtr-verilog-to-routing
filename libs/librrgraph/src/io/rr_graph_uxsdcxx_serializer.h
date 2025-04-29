@@ -2044,6 +2044,8 @@ class RrGraphSerializer final : public uxsd::RrGraphBase<RrGraphContextTypes> {
                 return uxsd::enum_node_type::CHANX;
             case CHANY:
                 return uxsd::enum_node_type::CHANY;
+            case CHANZ:
+                return uxsd::enum_node_type::CHANZ;
             case SOURCE:
                 return uxsd::enum_node_type::SOURCE;
             case SINK:
