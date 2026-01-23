@@ -16,6 +16,7 @@
 #include <cmath>
 
 #include "cluster_util.h"
+#include "verify_placement.h"
 #include "vpr_context.h"
 #include "vtr_assert.h"
 #include "vtr_math.h"
@@ -63,13 +64,13 @@
 #include "check_route.h"
 #include "constant_nets.h"
 #include "atom_netlist_utils.h"
-#include "cluster.h"
 #include "output_clustering.h"
 #include "vpr_constraints_reader.h"
 #include "place_constraints.h"
 #include "place_util.h"
 #include "timing_fail_error.h"
 #include "analytical_placement_flow.h"
+#include "verify_clustering.h"
 
 #include "vpr_constraints_writer.h"
 
@@ -89,6 +90,10 @@
 #include "sync_netlists_to_routing_flat.h"
 
 #include "load_flat_place.h"
+
+#include "hyper_graph.h"
+#include "partitioning_engine.h"
+#include "partition_creator.h"
 
 #ifdef VPR_USE_TBB
 #    define TBB_PREVIEW_GLOBAL_CONTROL 1 /* Needed for compatibility with old TBB versions */
@@ -287,7 +292,6 @@ void vpr_init_with_options(const t_options* options, t_vpr_setup* vpr_setup, t_a
              &vpr_setup->PackerOpts,
              &vpr_setup->PlacerOpts,
              &vpr_setup->APOpts,
-             &vpr_setup->AnnealSched,
              &vpr_setup->RouterOpts,
              &vpr_setup->AnalysisOpts,
              &vpr_setup->NocOpts,
@@ -301,6 +305,7 @@ void vpr_init_with_options(const t_options* options, t_vpr_setup* vpr_setup, t_a
              &vpr_setup->SaveGraphics,
              &vpr_setup->GraphicsCommands,
              &vpr_setup->PowerOpts,
+             &vpr_setup->PartitionOpts,
              vpr_setup);
 
     /* Check inputs are reasonable */
@@ -380,17 +385,77 @@ bool vpr_flow(t_vpr_setup& vpr_setup, t_arch& arch) {
     tbb::global_control c(tbb::global_control::max_allowed_parallelism, vpr_setup.num_workers);
 #endif
 
+    // if (vpr_setup.PartitionOpts.partition) {
+    //     VTR_LOG("Partitioning is enabled.\n");
+    //      const auto& atom_nlist = g_vpr_ctx.atom().nlist;
+    //     PartitionCreator partition_creator;
+    //     partition_creator.create_partition_constraints(g_vpr_ctx.mutable_floorplanning(), g_vpr_ctx.mutable_device(), atom_nlist, 2, 0.03, "/path/to/config.ini");
+    // }
+   
+
+    vtr::vector<AtomBlockId, float> atom_criticality;
+
     { //Pack
-        bool pack_success = vpr_pack_flow(vpr_setup, arch);
+        bool pack_success = vpr_pack_flow(vpr_setup, arch, atom_criticality);
 
         if (!pack_success) {
             return false; //Unimplementable
         }
     }
 
+
+    if (vpr_setup.PartitionOpts.partition_post_pack) {
+        if (!vpr_setup.PartitionOpts.partition) {
+            VTR_LOG("Partitioning should not be enabled both pre- and post-packing. Please use only --partition to enable partitioning before packing or --partition_post_pack to enable partitioning after packing.");
+            VTR_ASSERT(!vpr_setup.PartitionOpts.partition);
+        }
+        VTR_LOG("Post-Packing Partitioning is enabled.\n");
+        
+
+        // Create partition constraints
+        PartitionCreator partition_creator;
+        partition_creator.create_partition_constraints_post_pack(g_vpr_ctx.mutable_floorplanning(),
+                                                       g_vpr_ctx.mutable_device(),
+                                                       g_vpr_ctx.clustering().clb_nlist,
+                                                       2,
+                                                       vpr_setup.PartitionOpts.imbalance_rate,
+                                                      vpr_setup.PartitionOpts.cost_alpha,
+                                                      vpr_setup.PartitionOpts.cost_beta,
+                                                      "/path/to/config.ini", atom_criticality, g_vpr_ctx.mutable_clustering().atoms_lookup);
+    }
+
     // For the time being, we decided to create the flat graph after placement is done. Thus, the is_flat parameter for this function
     //, since it is called before routing, should be false.
     vpr_create_device(vpr_setup, arch, false);
+
+    // const auto& clb_nlist = g_vpr_ctx.clustering().clb_nlist;
+    // ClusterHypergraph cluster_hg(clb_nlist);
+        
+    // VTR_LOG("   Original CLBs: %zu\n", clb_nlist.blocks().size());
+    // VTR_LOG("   Original nets: %zu\n", clb_nlist.nets().size());
+    // VTR_LOG("   Hypergraph vertices: %d\n", cluster_hg.num_vertices());
+    // VTR_LOG("   Hypergraph edges: %d\n", cluster_hg.num_hyperedges());
+    
+    // cluster_hg.print_stats();
+    
+    // // Optional: Write to file
+    // cluster_hg.write_hmetis_format("clustered_netlist.hgr");
+
+    // // Create partitioning engine
+    // ClusterPartitioningEngine engine_clustered(cluster_hg, 
+    //                                 2,      // 2 partitions
+    //                                 0.03,   // 3% imbalance
+    //                                 "/path/to/config.ini");  // config file
+    
+    // // Run partitioning
+    // engine_clustered.partition();
+    
+    // // Print statistics
+    // engine_clustered.print_stats();
+    
+    // // Save results
+    // engine_clustered.save_partition_file("partition.txt");
+    // engine_clustered.save_partition_report("partition_report.txt");
 
     // TODO: Placer still assumes that cluster net list is used - graphics can not work with flat routing yet
     vpr_init_graphics(vpr_setup, arch, false);
@@ -494,7 +559,7 @@ void vpr_create_device_grid(const t_vpr_setup& vpr_setup, const t_arch& Arch) {
         if (is_empty_type(&type)) continue;
 
         VTR_LOG("\tNetlist\n\t\t%d\tblocks of type: %s\n",
-                num_type_instances[&type], type.name);
+                num_type_instances[&type], type.name.c_str());
 
         VTR_LOG("\tArchitecture\n");
         for (const auto equivalent_tile : type.equivalent_tiles) {
@@ -503,7 +568,7 @@ void vpr_create_device_grid(const t_vpr_setup& vpr_setup, const t_arch& Arch) {
             num_instances = (int)device_ctx.grid.num_instances(equivalent_tile, -1);
 
             VTR_LOG("\t\t%d\tblocks of type: %s\n",
-                    num_instances, equivalent_tile->name);
+                    num_instances, equivalent_tile->name.c_str());
         }
     }
     VTR_LOG("\n");
@@ -516,7 +581,7 @@ void vpr_create_device_grid(const t_vpr_setup& vpr_setup, const t_arch& Arch) {
         }
 
         if (device_ctx.grid.num_instances(&type, -1) != 0) {
-            VTR_LOG("\tPhysical Tile %s:\n", type.name);
+            VTR_LOG("\tPhysical Tile %s:\n", type.name.c_str());
 
             auto equivalent_sites = get_equivalent_sites_set(&type);
 
@@ -526,7 +591,7 @@ void vpr_create_device_grid(const t_vpr_setup& vpr_setup, const t_arch& Arch) {
                 if (num_inst != 0) {
                     util = float(num_type_instances[logical_block]) / num_inst;
                 }
-                VTR_LOG("\tBlock Utilization: %.2f Logical Block: %s\n", util, logical_block->name);
+                VTR_LOG("\tBlock Utilization: %.2f Logical Block: %s\n", util, logical_block->name.c_str());
             }
         }
     }
@@ -596,7 +661,7 @@ void vpr_setup_noc_routing_algorithm(const std::string& noc_routing_algorithm_na
                                                                                     noc_ctx.noc_model);
 }
 
-bool vpr_pack_flow(t_vpr_setup& vpr_setup, const t_arch& arch) {
+bool vpr_pack_flow(t_vpr_setup& vpr_setup, const t_arch& arch, vtr::vector<AtomBlockId, float>& atom_criticality) {
     auto& packer_opts = vpr_setup.PackerOpts;
 
     bool status = true;
@@ -606,7 +671,7 @@ bool vpr_pack_flow(t_vpr_setup& vpr_setup, const t_arch& arch) {
     } else {
         if (packer_opts.doPacking == STAGE_DO) {
             //Do the actual packing
-            status = vpr_pack(vpr_setup, arch);
+            status = vpr_pack(vpr_setup, arch, atom_criticality);
             if (!status) {
                 return status;
             }
@@ -622,40 +687,22 @@ bool vpr_pack_flow(t_vpr_setup& vpr_setup, const t_arch& arch) {
 
             // generate a .net file by legalizing an input flat placement file
             if (packer_opts.load_flat_placement) {
-
                 //Load and legalizer flat placement file
                 vpr_load_flat_placement(vpr_setup, arch);
 
                 //Load the result from the .net file
                 vpr_load_packing(vpr_setup, arch);
-
             } else {
-
                 //Load a previous packing from the .net file
                 vpr_load_packing(vpr_setup, arch);
-
             }
-
         }
-
-        // Load cluster_constraints data structure.
-        load_cluster_constraints();
-
-        /* Sanity check the resulting netlist */
-        check_netlist(packer_opts.pack_verbosity);
-
-        /* Output the netlist stats to console and optionally to file. */
-        writeClusteredNetlistStats(vpr_setup.FileNameOpts.write_block_usage);
-
-        // print the total number of used physical blocks for each
-        // physical block type after finishing the packing stage
-        print_pb_type_count(g_vpr_ctx.clustering().clb_nlist);
     }
 
     return status;
 }
 
-bool vpr_pack(t_vpr_setup& vpr_setup, const t_arch& arch) {
+bool vpr_pack(t_vpr_setup& vpr_setup, const t_arch& arch, vtr::vector<AtomBlockId, float>& atom_criticality) {
     vtr::ScopedStartFinishTimer timer("Packing");
 
     /* If needed, estimate inter-cluster delay. Assume the average routing hop goes out of
@@ -705,10 +752,10 @@ bool vpr_pack(t_vpr_setup& vpr_setup, const t_arch& arch) {
                                  + wtoi_switch_del); /* multiply by 4 to get a more conservative estimate */
     }
 
-    return try_pack(&vpr_setup.PackerOpts, &vpr_setup.AnalysisOpts,
+    return try_pack(&vpr_setup.PackerOpts, &vpr_setup.AnalysisOpts, &vpr_setup.PartitionOpts,
                     &arch, vpr_setup.user_models,
                     vpr_setup.library_models, inter_cluster_delay,
-                    vpr_setup.PackerRRGraph);
+                    vpr_setup.PackerRRGraph, atom_criticality);
 }
 
 void vpr_load_packing(t_vpr_setup& vpr_setup, const t_arch& arch) {
@@ -742,6 +789,31 @@ void vpr_load_packing(t_vpr_setup& vpr_setup, const t_arch& arch) {
         std::ofstream ofs("packing_pin_util.rpt");
         report_packing_pin_usage(ofs, g_vpr_ctx);
     }
+
+    // Load cluster_constraints data structure.
+    load_cluster_constraints();
+
+    /* Sanity check the resulting netlist */
+    check_netlist(vpr_setup.PackerOpts.pack_verbosity);
+
+    // Independently verify the clusterings to ensure the clustering can be
+    // used for the rest of the VPR flow.
+    unsigned num_errors = verify_clustering(g_vpr_ctx);
+    if (num_errors == 0) {
+        VTR_LOG("Completed clustering consistency check successfully.\n");
+    } else {
+        VPR_ERROR(VPR_ERROR_PACK,
+                  "%u errors found while performing clustering consistency "
+                  "check. Aborting program.\n",
+                  num_errors);
+    }
+
+    /* Output the netlist stats to console and optionally to file. */
+    writeClusteredNetlistStats(vpr_setup.FileNameOpts.write_block_usage);
+
+    // print the total number of used physical blocks for each
+    // physical block type after finishing the packing stage
+    print_pb_type_count(g_vpr_ctx.clustering().clb_nlist);
 }
 
 bool vpr_load_flat_placement(t_vpr_setup& vpr_setup, const t_arch& arch) {
@@ -793,8 +865,7 @@ bool vpr_place_flow(const Netlist<>& net_list, t_vpr_setup& vpr_setup, const t_a
             vpr_load_placement(vpr_setup, arch);
         }
 
-        sync_grid_to_blocks();
-        post_place_sync();
+                post_place_sync();
     }
 
     //Write out a vpr floorplanning constraints file if the option is specified
@@ -830,15 +901,13 @@ void vpr_place(const Netlist<>& net_list, t_vpr_setup& vpr_setup, const t_arch& 
 
     try_place(net_list,
               vpr_setup.PlacerOpts,
-              vpr_setup.AnnealSched,
               vpr_setup.RouterOpts,
               vpr_setup.AnalysisOpts,
               vpr_setup.NocOpts,
               arch.Chans,
               &vpr_setup.RoutingArch,
               vpr_setup.Segments,
-              arch.Directs,
-              arch.num_directs,
+              arch.directs,
               is_flat);
 
     auto& filename_opts = vpr_setup.FileNameOpts;
@@ -857,20 +926,28 @@ void vpr_load_placement(t_vpr_setup& vpr_setup, const t_arch& arch) {
 
     const auto& device_ctx = g_vpr_ctx.device();
     auto& place_ctx = g_vpr_ctx.mutable_placement();
+    auto& blk_loc_registry = place_ctx.mutable_blk_loc_registry();
     const auto& filename_opts = vpr_setup.FileNameOpts;
 
     //Initialize placement data structures, which will be filled when loading placement
-    auto& block_locs = place_ctx.mutable_block_locs();
-    GridBlock& grid_blocks = place_ctx.mutable_grid_blocks();
-    init_placement_context(block_locs, grid_blocks);
+    init_placement_context(blk_loc_registry, arch.directs);
 
     //Load an existing placement from a file
     place_ctx.placement_id = read_place(filename_opts.NetFile.c_str(), filename_opts.PlaceFile.c_str(),
-                                        place_ctx.mutable_blk_loc_registry(),
+                                        blk_loc_registry,
                                         filename_opts.verify_file_digests, device_ctx.grid);
 
-    //Ensure placement macros are loaded so that they can be drawn after placement (e.g. during routing)
-    place_ctx.pl_macros = alloc_and_load_placement_macros(arch.Directs, arch.num_directs);
+    // Verify that the placement invariants are met after reading the placement
+    // from a file.
+    unsigned num_errors = verify_placement(g_vpr_ctx);
+    if (num_errors == 0) {
+        VTR_LOG("Completed placement consistency check successfully.\n");
+    } else {
+        VPR_ERROR(VPR_ERROR_PLACE,
+                  "Completed placement consistency check, %d errors found.\n"
+                  "Aborting program.\n",
+                  num_errors);
+    }
 }
 
 RouteStatus vpr_route_flow(const Netlist<>& net_list,
@@ -1039,8 +1116,7 @@ RouteStatus vpr_route_fixed_W(const Netlist<>& net_list,
                    timing_info,
                    delay_calc,
                    arch.Chans,
-                   arch.Directs,
-                   arch.num_directs,
+                   arch.directs,
                    ScreenUpdatePriority::MAJOR,
                    is_flat);
 
@@ -1064,7 +1140,6 @@ RouteStatus vpr_route_min_W(const Netlist<>& net_list,
     int min_W = binary_search_place_and_route((const Netlist<>&)g_vpr_ctx.clustering().clb_nlist,
                                               net_list,
                                               vpr_setup.PlacerOpts,
-                                              vpr_setup.AnnealSched,
                                               router_opts,
                                               vpr_setup.AnalysisOpts,
                                               vpr_setup.NocOpts,
@@ -1143,7 +1218,7 @@ void vpr_create_rr_graph(t_vpr_setup& vpr_setup, const t_arch& arch, int chan_wi
                     det_routing_arch,
                     vpr_setup.Segments,
                     router_opts,
-                    arch.Directs, arch.num_directs,
+                    arch.directs,
                     &warnings,
                     is_flat);
     //Initialize drawing, now that we have an RR graph
@@ -1299,8 +1374,9 @@ static void free_complex_block_types() {
 void free_circuit() {
     //Free new net structures
     auto& cluster_ctx = g_vpr_ctx.mutable_clustering();
-    for (auto blk_id : cluster_ctx.clb_nlist.blocks())
+    for (ClusterBlockId blk_id : cluster_ctx.clb_nlist.blocks()) {
         cluster_ctx.clb_nlist.remove_block(blk_id);
+    }
 
     cluster_ctx.clb_nlist = ClusteredNetlist();
 }
@@ -1378,7 +1454,6 @@ void vpr_setup_vpr(t_options* Options,
                    t_packer_opts* PackerOpts,
                    t_placer_opts* PlacerOpts,
                    t_ap_opts* APOpts,
-                   t_annealing_sched* AnnealSched,
                    t_router_opts* RouterOpts,
                    t_analysis_opts* AnalysisOpts,
                    t_noc_opts* NocOpts,
@@ -1392,6 +1467,7 @@ void vpr_setup_vpr(t_options* Options,
                    bool* SaveGraphics,
                    std::string* GraphicsCommands,
                    t_power_opts* PowerOpts,
+                   t_partition_opts* PartitionOpts,
                    t_vpr_setup* vpr_setup) {
     SetupVPR(Options,
              TimingEnabled,
@@ -1404,7 +1480,6 @@ void vpr_setup_vpr(t_options* Options,
              PackerOpts,
              PlacerOpts,
              APOpts,
-             AnnealSched,
              RouterOpts,
              AnalysisOpts,
              NocOpts,
@@ -1418,6 +1493,7 @@ void vpr_setup_vpr(t_options* Options,
              SaveGraphics,
              GraphicsCommands,
              PowerOpts,
+             PartitionOpts,
              vpr_setup);
 }
 
@@ -1473,8 +1549,7 @@ bool vpr_analysis_flow(const Netlist<>& net_list,
         VTR_LOG("*****************************************************************************************\n");
     }
 
-    /* If routing is successful and users do not force to skip the sync-up, 
-     * - apply post-routing annotations
+    /* If routing is successful, apply post-routing annotations
      * - apply logic block pin fix-up
      *
      * Note:
@@ -1492,10 +1567,8 @@ bool vpr_analysis_flow(const Netlist<>& net_list,
                                              g_vpr_ctx.mutable_clustering(),
                                              g_vpr_ctx.placement(),
                                              vpr_setup.PackerOpts.pack_verbosity > 2);
-            }
-        } else {
-            VTR_LOG_WARN("Sychronization between packing and routing results is not applied due to users select to skip it\n");
         }
+    }
 
         std::string post_routing_packing_output_file_name = vpr_setup.PackerOpts.output_file + ".post_routing";
         write_packing_results_to_xml(vpr_setup.PackerOpts.global_clocks,

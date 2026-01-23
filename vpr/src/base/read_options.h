@@ -54,6 +54,8 @@ struct t_options {
     argparse::ArgValue<bool> do_routing;
     argparse::ArgValue<bool> do_analysis;
     argparse::ArgValue<bool> do_power;
+    argparse::ArgValue<bool> do_partitioning;
+    argparse::ArgValue<bool> do_partitioning_post_packing;
 
     /* Graphics Options */
     argparse::ArgValue<bool> show_graphics; ///<Enable argparse::ArgValue<int>eractive graphics?
@@ -119,12 +121,7 @@ struct t_options {
     argparse::ArgValue<float> PlaceInitT;
     argparse::ArgValue<float> PlaceExitT;
     argparse::ArgValue<float> PlaceAlphaT;
-    argparse::ArgValue<float> PlaceAlphaMin;
-    argparse::ArgValue<float> PlaceAlphaMax;
-    argparse::ArgValue<float> PlaceAlphaDecay;
-    argparse::ArgValue<float> PlaceSuccessMin;
-    argparse::ArgValue<float> PlaceSuccessTarget;
-    argparse::ArgValue<sched_type> anneal_sched_type;
+    argparse::ArgValue<e_sched_type> anneal_sched_type;
     argparse::ArgValue<e_place_algorithm> PlaceAlgorithm;
     argparse::ArgValue<e_place_algorithm> PlaceQuenchAlgorithm;
     argparse::ArgValue<e_pad_loc_type> pad_loc_type;
@@ -156,6 +153,33 @@ struct t_options {
 
     argparse::ArgValue<int> placer_debug_block;
     argparse::ArgValue<int> placer_debug_net;
+
+    argparse::ArgValue<bool> enable_kick_move;
+    argparse::ArgValue<int> kick_move_num;
+    argparse::ArgValue<float> kick_move_percent_to_swap;
+    argparse::ArgValue<e_kick_move_checkpointing> kick_move_checkpointing;
+    argparse::ArgValue<float> kick_move_temp_inc_factor;
+    argparse::ArgValue<float> kick_move_rlim_inc_ratio;
+    argparse::ArgValue<float> kick_move_swap_range_ratio;
+    argparse::ArgValue<float> kick_move_activation_percentage;
+    argparse::ArgValue<e_soft_partitioning> soft_partitioning;
+    argparse::ArgValue<float> mid_soft_partitioning_enable_percent;
+
+    argparse::ArgValue<e_rl_agent_move_set> rl_agent_move_set;
+
+    argparse::ArgValue<e_timing_tradeoff_adjustor> timing_tradeoff_adjustor;
+    argparse::ArgValue<float> timing_tradeoff_start;
+    argparse::ArgValue<float> timing_tradeoff_end;
+    argparse::ArgValue<float> timing_tradeoff_start_sr;
+    argparse::ArgValue<float> timing_tradeoff_end_sr;
+
+    argparse::ArgValue<e_timing_layer_weight_adjustor> timing_layer_weight_adjustor;
+    argparse::ArgValue<float> timing_layer_weight_start_sr;
+    argparse::ArgValue<float> timing_layer_weight_end_sr;
+    argparse::ArgValue<float> timing_layer_weight_start;
+    argparse::ArgValue<float> timing_layer_weight_end;
+
+    argparse::ArgValue<float> rl_second_state_activation_percent;
 
     /*NoC Options*/
     argparse::ArgValue<bool> noc;
@@ -218,7 +242,7 @@ struct t_options {
     argparse::ArgValue<int> reorder_rr_graph_nodes_threshold;
     argparse::ArgValue<int> reorder_rr_graph_nodes_seed;
     argparse::ArgValue<bool> flat_routing;
-    argparse::ArgValue<bool> has_choking_spot;
+    argparse::ArgValue<bool> router_opt_choke_points;
     argparse::ArgValue<int> route_verbosity;
     argparse::ArgValue<int> custom_3d_sb_fanin_fanout;
 
@@ -260,6 +284,11 @@ struct t_options {
     argparse::ArgValue<e_post_synth_netlist_unconn_handling> post_synth_netlist_unconn_output_handling;
     argparse::ArgValue<std::string> write_timing_summary;
     argparse::ArgValue<bool> skip_sync_clustering_and_routing_results;
+    
+    /* Partitioning Options */
+    argparse::ArgValue<float> partition_imbalance_rate;
+    argparse::ArgValue<float> partition_cost_alpha;
+    argparse::ArgValue<float> partition_cost_beta;
 };
 
 argparse::ArgumentParser create_arg_parser(const std::string& prog_name, t_options& args);

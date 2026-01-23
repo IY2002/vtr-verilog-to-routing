@@ -87,3 +87,8 @@ void print_placement_constraints(FILE* fp, const UserPlaceConstraints& constrain
         }
     }
 }
+
+void UserPlaceConstraints::clear() {
+    constrained_atoms.clear();
+    partitions.clear();
+}

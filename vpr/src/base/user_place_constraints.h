@@ -99,6 +99,11 @@ class UserPlaceConstraints {
      */
     PartitionRegion& get_mutable_partition_pr(PartitionId part_id);
 
+    /**
+     * @brief Clears all partition constraints
+     */
+    void clear();
+
   private:
     /**
      * Store all constrained atoms

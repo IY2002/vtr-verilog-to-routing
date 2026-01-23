@@ -1,13 +1,9 @@
-#include <cstring>
 #include <vector>
-#include <sstream>
 #include <list>
 
 #include "vtr_assert.h"
 #include "vtr_util.h"
-#include "vtr_random.h"
 #include "vtr_log.h"
-#include "vtr_memory.h"
 #include "vtr_time.h"
 
 #include "vpr_types.h"
@@ -21,7 +17,6 @@
 #include "pb_type_graph.h"
 #include "pack_types.h"
 #include "lb_type_rr_graph.h"
-#include "rr_graph_area.h"
 #include "echo_arch.h"
 #include "read_options.h"
 #include "echo_files.h"
@@ -44,8 +39,7 @@ static void SetupRoutingArch(const t_arch& Arch, t_det_routing_arch* RoutingArch
 static void SetupTiming(const t_options& Options, const bool TimingEnabled, t_timing_inf* Timing);
 static void SetupSwitches(const t_arch& Arch,
                           t_det_routing_arch* RoutingArch,
-                          const t_arch_switch_inf* ArchSwitches,
-                          int NumArchSwitches);
+                          const std::vector<t_arch_switch_inf>& arch_switches);
 static void SetupAnalysisOpts(const t_options& Options, t_analysis_opts& analysis_opts);
 static void SetupPowerOpts(const t_options& Options, t_power_opts* power_opts, t_arch* Arch);
 
@@ -98,7 +92,6 @@ void SetupVPR(const t_options* options,
               t_packer_opts* packerOpts,
               t_placer_opts* placerOpts,
               t_ap_opts* apOpts,
-              t_annealing_sched* annealSched,
               t_router_opts* routerOpts,
               t_analysis_opts* analysisOpts,
               t_noc_opts* nocOpts,
@@ -112,12 +105,13 @@ void SetupVPR(const t_options* options,
               bool* saveGraphics,
               std::string* graphicsCommands,
               t_power_opts* powerOpts,
+              t_partition_opts* partitionOpts,
               t_vpr_setup* vpr_setup) {
     using argparse::Provenance;
 
     auto& device_ctx = g_vpr_ctx.mutable_device();
 
-    if (options->CircuitName.value() == "") {
+    if (options->CircuitName.value().empty()) {
         VPR_FATAL_ERROR(VPR_ERROR_BLIF_F,
                         "No blif file found in arguments (did you specify an architecture file?)\n");
     }
@@ -146,7 +140,7 @@ void SetupVPR(const t_options* options,
 
     SetupNetlistOpts(*options, *netlistOpts);
     SetupPlacerOpts(*options, placerOpts);
-    SetupAnnealSched(*options, annealSched);
+    SetupAnnealSched(*options, &placerOpts->anneal_sched);
     SetupRouterOpts(*options, routerOpts);
     SetupAnalysisOpts(*options, *analysisOpts);
     SetupPowerOpts(*options, powerOpts, arch);
@@ -156,7 +150,7 @@ void SetupVPR(const t_options* options,
     //save the device layout, which is required to parse the architecture file
     arch->device_layout = options->device_layout;
 
-    if (readArchFile == true) {
+    if (readArchFile) {
         vtr::ScopedStartFinishTimer t("Loading Architecture Description");
         switch (options->arch_format) {
             case e_arch_format::VTR:
@@ -232,7 +226,7 @@ void SetupVPR(const t_options* options,
 
     segments = arch->Segments;
 
-    SetupSwitches(*arch, routingArch, arch->Switches, arch->num_switches);
+    SetupSwitches(*arch, routingArch, arch->switches);
     SetupRoutingArch(*arch, routingArch);
     SetupTiming(*options, timingenabled, timing);
     SetupPackerOpts(*options, packerOpts);
@@ -300,13 +294,26 @@ void SetupVPR(const t_options* options,
         }
     }
 
+    if (options->do_partitioning) {
+        partitionOpts->partition = true;
+    } else {
+        partitionOpts->partition = false;
+    }
+
+    if (options->do_partitioning_post_packing) {
+        partitionOpts->partition_post_pack = true;
+    } else {
+        partitionOpts->partition_post_pack = false;
+    }
+
+    partitionOpts->imbalance_rate = options->partition_imbalance_rate;
+    partitionOpts->cost_alpha = options->partition_cost_alpha;
+    partitionOpts->cost_beta = options->partition_cost_beta;
+
     ShowSetup(*vpr_setup);
 
     /* init global variables */
     vtr::out_file_prefix = options->out_file_prefix;
-
-    /* Set seed for pseudo-random placement, default seed to 1 */
-    vtr::srandom(placerOpts->seed);
 
     {
         vtr::ScopedStartFinishTimer t("Building complex block graph");
@@ -318,7 +325,7 @@ void SetupVPR(const t_options* options,
         vtr::ScopedStartFinishTimer timer("Allocate intra-cluster resources");
         // The following two functions should be called when the data structured related to t_pb_graph_node, t_pb_type,
         // and t_pb_graph_edge are initialized
-        alloc_and_load_intra_cluster_resources(routerOpts->has_choking_spot);
+        alloc_and_load_intra_cluster_resources(routerOpts->has_choke_point);
         add_intra_tile_switches();
     }
 
@@ -348,7 +355,7 @@ void SetupVPR(const t_options* options,
 
 static void SetupTiming(const t_options& Options, const bool TimingEnabled, t_timing_inf* Timing) {
     /* Don't do anything if they don't want timing */
-    if (false == TimingEnabled) {
+    if (!TimingEnabled) {
         Timing->timing_analysis_enabled = false;
         return;
     }
@@ -363,12 +370,11 @@ static void SetupTiming(const t_options& Options, const bool TimingEnabled, t_ti
  */
 static void SetupSwitches(const t_arch& Arch,
                           t_det_routing_arch* RoutingArch,
-                          const t_arch_switch_inf* ArchSwitches,
-                          int NumArchSwitches) {
+                          const std::vector<t_arch_switch_inf>& arch_switches) {
     auto& device_ctx = g_vpr_ctx.mutable_device();
 
-    int switches_to_copy = NumArchSwitches;
-    int num_arch_switches = NumArchSwitches;
+    int switches_to_copy = (int)arch_switches.size();
+    int num_arch_switches = (int)arch_switches.size();;
 
     find_ipin_cblock_switch_index(Arch, RoutingArch->wire_to_arch_ipin_switch, RoutingArch->wire_to_arch_ipin_switch_between_dice);
 
@@ -378,10 +384,10 @@ static void SetupSwitches(const t_arch& Arch,
     /* Alloc the list now that we know the final num_arch_switches value */
     device_ctx.arch_switch_inf.resize(num_arch_switches);
     for (int iswitch = 0; iswitch < switches_to_copy; iswitch++) {
-        device_ctx.arch_switch_inf[iswitch] = ArchSwitches[iswitch];
+        device_ctx.arch_switch_inf[iswitch] = arch_switches[iswitch];
         // TODO: AM: Since I am not sure whether replacing arch_switch_in with all_sw_inf, which contains the
         //  information about intra-tile switched, would not break anything, for the time being, I decided to not remove it
-        device_ctx.all_sw_inf[iswitch] = ArchSwitches[iswitch];
+        device_ctx.all_sw_inf[iswitch] = arch_switches[iswitch];
     }
 
     /* Delayless switch for connecting sinks and sources with their pins. */
@@ -405,7 +411,7 @@ static void SetupSwitches(const t_arch& Arch,
     device_ctx.delayless_switch_idx = RoutingArch->delayless_switch;
 
     //Warn about non-zero Cout values for the ipin switch, since these values have no effect.
-    //VPR do not model the R/C's of block internal routing connectsion.
+    //VPR do not model the R/C's of block internal routing connection.
     //
     //Note that we don't warn about the R value as it may be used to size the buffer (if buf_size_type is AUTO)
     if (device_ctx.arch_switch_inf[RoutingArch->wire_to_arch_ipin_switch].Cout != 0.) {
@@ -526,7 +532,7 @@ static void SetupRouterOpts(const t_options& Options, t_router_opts* RouterOpts)
     RouterOpts->max_logged_overused_rr_nodes = Options.max_logged_overused_rr_nodes;
     RouterOpts->generate_rr_node_overuse_report = Options.generate_rr_node_overuse_report;
     RouterOpts->flat_routing = Options.flat_routing;
-    RouterOpts->has_choking_spot = Options.has_choking_spot;
+    RouterOpts->has_choke_point = Options.router_opt_choke_points;
     RouterOpts->custom_3d_sb_fanin_fanout = Options.custom_3d_sb_fanin_fanout;
     RouterOpts->with_timing_analysis = Options.timing_analysis;
 }
@@ -557,36 +563,11 @@ static void SetupAnnealSched(const t_options& Options,
         VPR_FATAL_ERROR(VPR_ERROR_OTHER, "inner_num must be greater than 0.\n");
     }
 
-    AnnealSched->alpha_min = Options.PlaceAlphaMin;
-    if (AnnealSched->alpha_min >= 1 || AnnealSched->alpha_min <= 0) {
-        VPR_FATAL_ERROR(VPR_ERROR_OTHER, "alpha_min must be between 0 and 1 exclusive.\n");
-    }
-
-    AnnealSched->alpha_max = Options.PlaceAlphaMax;
-    if (AnnealSched->alpha_max >= 1 || AnnealSched->alpha_max <= AnnealSched->alpha_min) {
-        VPR_FATAL_ERROR(VPR_ERROR_OTHER, "alpha_max must be between alpha_min and 1 exclusive.\n");
-    }
-
-    AnnealSched->alpha_decay = Options.PlaceAlphaDecay;
-    if (AnnealSched->alpha_decay >= 1 || AnnealSched->alpha_decay <= 0) {
-        VPR_FATAL_ERROR(VPR_ERROR_OTHER, "alpha_decay must be between 0 and 1 exclusive.\n");
-    }
-
-    AnnealSched->success_min = Options.PlaceSuccessMin;
-    if (AnnealSched->success_min >= 1 || AnnealSched->success_min <= 0) {
-        VPR_FATAL_ERROR(VPR_ERROR_OTHER, "success_min must be between 0 and 1 exclusive.\n");
-    }
-
-    AnnealSched->success_target = Options.PlaceSuccessTarget;
-    if (AnnealSched->success_target >= 1 || AnnealSched->success_target <= 0) {
-        VPR_FATAL_ERROR(VPR_ERROR_OTHER, "success_target must be between 0 and 1 exclusive.\n");
-    }
-
     AnnealSched->type = Options.anneal_sched_type;
 }
 
 /**
- * @brief Sets up the s_packer_opts structure baesd on users inputs and
+ * @brief Sets up the s_packer_opts structure based on users inputs and
  *        on the architecture specified.
  *
  * Error checking, such as checking for conflicting params is assumed
@@ -604,7 +585,6 @@ void SetupPackerOpts(const t_options& Options,
 
     //TODO: document?
     PackerOpts->global_clocks = true;       /* DEFAULT */
-    PackerOpts->hill_climbing_flag = false; /* DEFAULT */
 
     PackerOpts->allow_unrelated_clustering = Options.allow_unrelated_clustering;
     PackerOpts->connection_driven = Options.connection_driven_clustering;
@@ -626,7 +606,6 @@ void SetupPackerOpts(const t_options& Options,
     //TODO: document?
     PackerOpts->inter_cluster_net_delay = 1.0; /* DEFAULT */
     PackerOpts->auto_compute_inter_cluster_net_delay = true;
-    PackerOpts->packer_algorithm = PACK_GREEDY; /* DEFAULT */
 
     PackerOpts->device_layout = Options.device_layout;
 
@@ -658,8 +637,6 @@ static void SetupPlacerOpts(const t_options& Options, t_placer_opts* PlacerOpts)
 
     PlacerOpts->inner_loop_recompute_divider = Options.inner_loop_recompute_divider;
     PlacerOpts->quench_recompute_divider = Options.quench_recompute_divider;
-
-    PlacerOpts->place_cost_exp = 1;
 
     PlacerOpts->td_place_exp_first = Options.place_exp_first;
 
@@ -733,6 +710,37 @@ static void SetupPlacerOpts(const t_options& Options, t_placer_opts* PlacerOpts)
 
     PlacerOpts->placer_debug_block = Options.placer_debug_block;
     PlacerOpts->placer_debug_net = Options.placer_debug_net;
+
+    if (Options.enable_kick_move) {
+        PlacerOpts->enable_kick_move = true;
+    } else {
+        PlacerOpts->enable_kick_move = false;
+    }
+    PlacerOpts->kick_move_num = Options.kick_move_num;
+    PlacerOpts->kick_move_percent_to_swap = Options.kick_move_percent_to_swap;
+    PlacerOpts->kick_move_checkpointing = Options.kick_move_checkpointing;
+    PlacerOpts->kick_move_temp_inc_factor = Options.kick_move_temp_inc_factor;
+    PlacerOpts->kick_move_rlim_inc_ratio = Options.kick_move_rlim_inc_ratio;
+    PlacerOpts->kick_move_swap_range_ratio = Options.kick_move_swap_range_ratio;
+    PlacerOpts -> kick_move_activation_percentage = Options.kick_move_activation_percentage;
+    
+    PlacerOpts->soft_partitioning = Options.soft_partitioning;
+    PlacerOpts->mid_soft_partitioning_enable_percent = Options.mid_soft_partitioning_enable_percent;
+    PlacerOpts->rl_agent_move_set = Options.rl_agent_move_set;
+
+    PlacerOpts->rl_second_state_activation_percent = Options.rl_second_state_activation_percent;
+
+    PlacerOpts->timing_tradeoff_adjustor = Options.timing_tradeoff_adjustor;
+    PlacerOpts->timing_tradeoff_start = Options.timing_tradeoff_start;
+    PlacerOpts->timing_tradeoff_end = Options.timing_tradeoff_end;
+    PlacerOpts->timing_tradeoff_start_sr = Options.timing_tradeoff_start_sr;
+    PlacerOpts->timing_tradeoff_end_sr = Options.timing_tradeoff_end_sr;
+
+    PlacerOpts->timing_layer_weight_adjustor = Options.timing_layer_weight_adjustor;
+    PlacerOpts->timing_layer_weight_start_sr = Options.timing_layer_weight_start_sr;
+    PlacerOpts->timing_layer_weight_end_sr = Options.timing_layer_weight_end_sr;
+    PlacerOpts->timing_layer_weight_start = Options.timing_layer_weight_start;
+    PlacerOpts->timing_layer_weight_end = Options.timing_layer_weight_end;
 }
 
 static void SetupAnalysisOpts(const t_options& Options, t_analysis_opts& analysis_opts) {
@@ -812,10 +820,10 @@ static void SetupServerOpts(const t_options& Options, t_server_opts* ServerOpts)
 }
 
 static void find_ipin_cblock_switch_index(const t_arch& Arch, int& wire_to_arch_ipin_switch, int& wire_to_arch_ipin_switch_between_dice) {
-    for (auto cb_switch_name_index = 0; cb_switch_name_index < (int)Arch.ipin_cblock_switch_name.size(); cb_switch_name_index++) {
+    for (int cb_switch_name_index = 0; cb_switch_name_index < (int)Arch.ipin_cblock_switch_name.size(); cb_switch_name_index++) {
         int ipin_cblock_switch_index = UNDEFINED;
-        for (int iswitch = 0; iswitch < Arch.num_switches; ++iswitch) {
-            if (Arch.Switches[iswitch].name == Arch.ipin_cblock_switch_name[cb_switch_name_index]) {
+        for (int iswitch = 0; iswitch < (int)Arch.switches.size(); ++iswitch) {
+            if (Arch.switches[iswitch].name == Arch.ipin_cblock_switch_name[cb_switch_name_index]) {
                 if (ipin_cblock_switch_index != UNDEFINED) {
                     VPR_FATAL_ERROR(VPR_ERROR_ARCH, "Found duplicate switches named '%s'\n",
                                     Arch.ipin_cblock_switch_name[cb_switch_name_index].c_str());

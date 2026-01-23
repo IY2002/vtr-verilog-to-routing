@@ -91,6 +91,8 @@ void update_cluster_part_reg(PartitionRegion& cluster_pr, const PartitionRegion&
  */
 const PartitionRegion& get_device_partition_region();
 
+PartitionRegion& get_block_partition_region_on_device(int block_index, const std::vector<int> block_compressed_layers);
+
 namespace std {
 template<>
 struct hash<PartitionRegion> {

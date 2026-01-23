@@ -272,7 +272,7 @@ struct RouteBudgetsAlgorithm {
     }
 
     std::vector<std::string> default_choices() {
-        return {"minimax", "scale_delay", "disable"};
+        return {"minimax", "yoyo", "scale_delay", "disable"};
     }
 };
 
@@ -393,11 +393,11 @@ struct ParsePlaceAlgorithm {
     ConvertedValue<e_place_algorithm> from_str(const std::string& str) {
         ConvertedValue<e_place_algorithm> conv_value;
         if (str == "bounding_box") {
-            conv_value.set_value(BOUNDING_BOX_PLACE);
+            conv_value.set_value(e_place_algorithm::BOUNDING_BOX_PLACE);
         } else if (str == "criticality_timing") {
-            conv_value.set_value(CRITICALITY_TIMING_PLACE);
+            conv_value.set_value(e_place_algorithm::CRITICALITY_TIMING_PLACE);
         } else if (str == "slack_timing") {
-            conv_value.set_value(SLACK_TIMING_PLACE);
+            conv_value.set_value(e_place_algorithm::SLACK_TIMING_PLACE);
         } else {
             std::stringstream msg;
             msg << "Invalid conversion from '" << str << "' to e_place_algorithm (expected one of: " << argparse::join(default_choices(), ", ") << ")";
@@ -415,12 +415,12 @@ struct ParsePlaceAlgorithm {
 
     ConvertedValue<std::string> to_str(e_place_algorithm val) {
         ConvertedValue<std::string> conv_value;
-        if (val == BOUNDING_BOX_PLACE) {
+        if (val == e_place_algorithm::BOUNDING_BOX_PLACE) {
             conv_value.set_value("bounding_box");
-        } else if (val == CRITICALITY_TIMING_PLACE) {
+        } else if (val == e_place_algorithm::CRITICALITY_TIMING_PLACE) {
             conv_value.set_value("criticality_timing");
         } else {
-            VTR_ASSERT(val == SLACK_TIMING_PLACE);
+            VTR_ASSERT(val == e_place_algorithm::SLACK_TIMING_PLACE);
             conv_value.set_value("slack_timing");
         }
         return conv_value;
@@ -435,11 +435,11 @@ struct ParsePlaceBoundingBox {
     ConvertedValue<e_place_bounding_box_mode> from_str(const std::string& str) {
         ConvertedValue<e_place_bounding_box_mode> conv_value;
         if (str == "auto_bb") {
-            conv_value.set_value(AUTO_BB);
+            conv_value.set_value(e_place_bounding_box_mode::AUTO_BB);
         } else if (str == "cube_bb") {
-            conv_value.set_value(CUBE_BB);
+            conv_value.set_value(e_place_bounding_box_mode::CUBE_BB);
         } else if (str == "per_layer_bb") {
-            conv_value.set_value(PER_LAYER_BB);
+            conv_value.set_value(e_place_bounding_box_mode::PER_LAYER_BB);
         } else {
             std::stringstream msg;
             msg << "Invalid conversion from '" << str << "' to e_place_algorithm (expected one of: " << argparse::join(default_choices(), ", ") << ")";
@@ -450,12 +450,12 @@ struct ParsePlaceBoundingBox {
 
     ConvertedValue<std::string> to_str(e_place_bounding_box_mode val) {
         ConvertedValue<std::string> conv_value;
-        if (val == AUTO_BB) {
+        if (val == e_place_bounding_box_mode::AUTO_BB) {
             conv_value.set_value("auto_bb");
-        } else if (val == CUBE_BB) {
+        } else if (val == e_place_bounding_box_mode::CUBE_BB) {
             conv_value.set_value("cube_bb");
         } else {
-            VTR_ASSERT(val == PER_LAYER_BB);
+            VTR_ASSERT(val == e_place_bounding_box_mode::PER_LAYER_BB);
             conv_value.set_value("per_layer_bb");
         }
         return conv_value;
@@ -470,9 +470,9 @@ struct ParsePlaceAgentAlgorithm {
     ConvertedValue<e_agent_algorithm> from_str(const std::string& str) {
         ConvertedValue<e_agent_algorithm> conv_value;
         if (str == "e_greedy")
-            conv_value.set_value(E_GREEDY);
+            conv_value.set_value(e_agent_algorithm::E_GREEDY);
         else if (str == "softmax")
-            conv_value.set_value(SOFTMAX);
+            conv_value.set_value(e_agent_algorithm::SOFTMAX);
         else {
             std::stringstream msg;
             msg << "Invalid conversion from '" << str << "' to e_agent_algorithm (expected one of: " << argparse::join(default_choices(), ", ") << ")";
@@ -483,10 +483,10 @@ struct ParsePlaceAgentAlgorithm {
 
     ConvertedValue<std::string> to_str(e_agent_algorithm val) {
         ConvertedValue<std::string> conv_value;
-        if (val == E_GREEDY)
+        if (val == e_agent_algorithm::E_GREEDY)
             conv_value.set_value("e_greedy");
         else {
-            VTR_ASSERT(val == SOFTMAX);
+            VTR_ASSERT(val == e_agent_algorithm::SOFTMAX);
             conv_value.set_value("softmax");
         }
         return conv_value;
@@ -525,6 +525,255 @@ struct ParsePlaceAgentSpace {
 
     std::vector<std::string> default_choices() {
         return {"move_type", "move_block_type"};
+    }
+};
+
+struct ParseKickMoveCheckpointing {
+    ConvertedValue<e_kick_move_checkpointing> from_str(const std::string& str) {
+        ConvertedValue<e_kick_move_checkpointing> conv_value;
+        if (str == "base")
+            conv_value.set_value(e_kick_move_checkpointing::BASE);
+        else if (str == "progressive")
+            conv_value.set_value(e_kick_move_checkpointing::PROGRESSIVE);
+        else if (str == "base_progressive")
+            conv_value.set_value(e_kick_move_checkpointing::BASE_PROGRESSIVE);
+        else if (str == "none")
+            conv_value.set_value(e_kick_move_checkpointing::NONE);
+        else {
+            std::stringstream msg;
+            msg << "Invalid conversion from '" << str << "' to e_kick_move_checkpointing (expected one of: " << argparse::join(default_choices(), ", ") << ")";
+            conv_value.set_error(msg.str());
+        }
+        return conv_value;
+    }
+
+    ConvertedValue<std::string> to_str(e_kick_move_checkpointing val) {
+        ConvertedValue<std::string> conv_value;
+        if (val == e_kick_move_checkpointing::BASE)
+            conv_value.set_value("base");
+        else if (val == e_kick_move_checkpointing::PROGRESSIVE)
+            conv_value.set_value("progressive");
+        else if (val == e_kick_move_checkpointing::NONE)
+            conv_value.set_value("none");
+        else {
+            VTR_ASSERT(val == e_kick_move_checkpointing::BASE_PROGRESSIVE);
+            conv_value.set_value("base_progressive");
+        }
+
+        return conv_value;
+    }
+
+    std::vector<std::string> default_choices() {
+        return {"base", "progressive", "base_progressive", "none"};
+    }
+};
+
+struct ParseSoftPartitioning {
+    ConvertedValue<e_soft_partitioning> from_str(const std::string& str) {
+        ConvertedValue<e_soft_partitioning> conv_value;
+        if (str == "none")
+            conv_value.set_value(e_soft_partitioning::NONE);
+        else if (str == "init_place")
+            conv_value.set_value(e_soft_partitioning::INIT_PLACE);
+        else if (str == "mid_place")
+            conv_value.set_value(e_soft_partitioning::MID_PLACE);
+        else if (str == "late_place")
+            conv_value.set_value(e_soft_partitioning::LATE_PLACE);
+        else {
+            std::stringstream msg;
+            msg << "Invalid conversion from '" << str << "' to e_soft_partitioning (expected one of: " << argparse::join(default_choices(), ", ") << ")";
+            conv_value.set_error(msg.str());
+        }
+        return conv_value;
+    }
+
+    ConvertedValue<std::string> to_str(e_soft_partitioning val) {
+        ConvertedValue<std::string> conv_value;
+        if (val == e_soft_partitioning::NONE)
+            conv_value.set_value("none");
+        else if (val == e_soft_partitioning::INIT_PLACE)
+            conv_value.set_value("init_place");
+        else if (val == e_soft_partitioning::MID_PLACE)
+            conv_value.set_value("mid_place");
+        else {
+            VTR_ASSERT(val == e_soft_partitioning::LATE_PLACE);
+            conv_value.set_value("late_place");
+        }
+
+        return conv_value;
+    }
+
+    std::vector<std::string> default_choices() {
+        return {"none", "init_place", "mid_place", "late_place"};
+    }
+};
+
+struct ParseRLMoveSet {
+    ConvertedValue<e_rl_agent_move_set> from_str(const std::string& str) {
+        ConvertedValue<e_rl_agent_move_set> conv_value;
+        if (str == "base")
+            conv_value.set_value(e_rl_agent_move_set::BASE);
+        else if (str == "prob")
+            conv_value.set_value(e_rl_agent_move_set::PROB);
+        else if (str == "base_layer_swap")
+            conv_value.set_value(e_rl_agent_move_set::BASE_LAYER_SWAP);
+        else if (str == "prob_layer_swap")
+            conv_value.set_value(e_rl_agent_move_set::PROB_LAYER_SWAP);
+        else if (str == "stuck_layer_swap")
+            conv_value.set_value(e_rl_agent_move_set::STUCK_LAYER_SWAP);
+        else if (str == "stuck")
+            conv_value.set_value(e_rl_agent_move_set::STUCK);
+        else if (str == "w_median_base")
+            conv_value.set_value(e_rl_agent_move_set::W_MEDIAN_BASE);
+        else if (str == "w_median_only")
+            conv_value.set_value(e_rl_agent_move_set::W_MEDIAN_ONLY);
+        else if (str == "w_median_2opt")
+            conv_value.set_value(e_rl_agent_move_set::W_MEDIAN_2OPT);
+        else if (str == "stuck_base_late")
+            conv_value.set_value(e_rl_agent_move_set::STUCK_BASE_LATE);
+        else if (str == "stuck_prob_late")
+            conv_value.set_value(e_rl_agent_move_set::STUCK_PROB_LATE);
+        else if (str == "stuck_base_layer_swap_late")
+            conv_value.set_value(e_rl_agent_move_set::STUCK_BASE_LAYER_SWAP_LATE);
+        else if (str == "stuck_prob_layer_swap_late")
+            conv_value.set_value(e_rl_agent_move_set::STUCK_PROB_LAYER_SWAP_LATE);
+        else if (str == "base_stuck_late")
+            conv_value.set_value(e_rl_agent_move_set::BASE_STUCK_LATE);
+        else if (str == "prob_stuck_late")
+            conv_value.set_value(e_rl_agent_move_set::PROB_STUCK_LATE);
+        else if (str == "base_layer_swap_stuck_late")
+            conv_value.set_value(e_rl_agent_move_set::BASE_LAYER_SWAP_STUCK_LATE);
+        else if (str == "prob_layer_swap_stuck_late")
+            conv_value.set_value(e_rl_agent_move_set::PROB_LAYER_SWAP_STUCK_LATE);
+        else {
+            std::stringstream msg;
+            msg << "Invalid conversion from '" << str << "' to e_rl_agent_move_set (expected one of: " << argparse::join(default_choices(), ", ") << ")";
+            conv_value.set_error(msg.str());
+        }
+        return conv_value;
+    }
+
+    ConvertedValue<std::string> to_str(e_rl_agent_move_set val) {
+        ConvertedValue<std::string> conv_value;
+        if (val == e_rl_agent_move_set::BASE)
+            conv_value.set_value("base");
+        else if (val == e_rl_agent_move_set::PROB)
+            conv_value.set_value("prob");
+        else if (val == e_rl_agent_move_set::BASE_LAYER_SWAP)
+            conv_value.set_value("base_layer_swap");
+        else if (val == e_rl_agent_move_set::PROB_LAYER_SWAP)
+            conv_value.set_value("prob_layer_swap");
+        else if (val == e_rl_agent_move_set::STUCK_LAYER_SWAP)
+            conv_value.set_value("stuck_layer_swap");
+        else if (val == e_rl_agent_move_set::W_MEDIAN_BASE)
+            conv_value.set_value("w_median_base");
+        else if (val == e_rl_agent_move_set::W_MEDIAN_ONLY)
+            conv_value.set_value("w_median_only");
+        else if (val == e_rl_agent_move_set::W_MEDIAN_2OPT)
+            conv_value.set_value("w_median_2opt");
+        else if (val == e_rl_agent_move_set::STUCK_BASE_LATE)
+            conv_value.set_value("stuck_base_late");
+        else if (val == e_rl_agent_move_set::STUCK_PROB_LATE)
+            conv_value.set_value("stuck_prob_late");
+        else if (val == e_rl_agent_move_set::STUCK_BASE_LAYER_SWAP_LATE)
+            conv_value.set_value("stuck_base_layer_swap_late");
+        else if (val == e_rl_agent_move_set::STUCK_PROB_LAYER_SWAP_LATE)
+            conv_value.set_value("stuck_prob_layer_swap_late");
+        else if (val == e_rl_agent_move_set::BASE_STUCK_LATE)
+            conv_value.set_value("base_stuck_late");
+        else if (val == e_rl_agent_move_set::PROB_STUCK_LATE)
+            conv_value.set_value("prob_stuck_late");
+        else if (val == e_rl_agent_move_set::BASE_LAYER_SWAP_STUCK_LATE)
+            conv_value.set_value("base_layer_swap_stuck_late");
+        else if (val == e_rl_agent_move_set::PROB_LAYER_SWAP_STUCK_LATE)
+            conv_value.set_value("prob_layer_swap_stuck_late");
+\
+        else{
+            VTR_ASSERT(val == e_rl_agent_move_set::STUCK);
+            conv_value.set_value("stuck");
+        }
+
+        return conv_value;
+    }
+
+    std::vector<std::string> default_choices() {
+        return {"base", "prob", "base_layer_swap", "prob_layer_swap", "stuck_layer_swap", "stuck", "w_median_base", "w_median_only", "w_median_2opt", "stuck_base_late", "stuck_prob_late", "stuck_base_layer_swap_late", "stuck_prob_layer_swap_late", "base_stuck_late", "prob_stuck_late", "base_layer_swap_stuck_late", "prob_layer_swap_stuck_late"};
+    }
+};
+
+struct ParseTimingTradeoffAdjustor {
+    ConvertedValue<e_timing_tradeoff_adjustor> from_str(const std::string& str) {
+        ConvertedValue<e_timing_tradeoff_adjustor> conv_value;
+        if (str == "none")
+            conv_value.set_value(e_timing_tradeoff_adjustor::NONE);
+        else if (str == "linear")
+            conv_value.set_value(e_timing_tradeoff_adjustor::LINEAR);
+        else if (str == "quadratic")
+            conv_value.set_value(e_timing_tradeoff_adjustor::QUADRATIC);
+        else {
+            std::stringstream msg;
+            msg << "Invalid conversion from '" << str << "' to e_timing_tradeoff_adjustor (expected one of: " << argparse::join(default_choices(), ", ") << ")";
+            conv_value.set_error(msg.str());
+        }
+        return conv_value;
+    }
+
+    ConvertedValue<std::string> to_str(e_timing_tradeoff_adjustor val) {
+        ConvertedValue<std::string> conv_value;
+        if (val == e_timing_tradeoff_adjustor::NONE)
+            conv_value.set_value("none");
+        else if (val == e_timing_tradeoff_adjustor::LINEAR)
+            conv_value.set_value("linear");
+        else{
+            VTR_ASSERT(val == e_timing_tradeoff_adjustor::QUADRATIC);
+            conv_value.set_value("quadratic");
+        }
+
+        return conv_value;
+    }
+
+    std::vector<std::string> default_choices() {
+        return {"none", "linear", "quadratic"};
+    }
+};
+
+struct ParseTimingLayerWeightAdjustor {
+    ConvertedValue<e_timing_layer_weight_adjustor> from_str(const std::string& str) {
+        ConvertedValue<e_timing_layer_weight_adjustor> conv_value;
+        if (str == "none")
+            conv_value.set_value(e_timing_layer_weight_adjustor::NONE);
+        else if (str == "step")
+            conv_value.set_value(e_timing_layer_weight_adjustor::STEP);
+        else if (str == "linear")
+            conv_value.set_value(e_timing_layer_weight_adjustor::LINEAR);
+        else if (str == "quadratic")
+            conv_value.set_value(e_timing_layer_weight_adjustor::QUADRATIC);
+        else {
+            std::stringstream msg;
+            msg << "Invalid conversion from '" << str << "' to e_timing_layer_weight_adjustor (expected one of: " << argparse::join(default_choices(), ", ") << ")";
+            conv_value.set_error(msg.str());
+        }
+        return conv_value;
+    }
+
+    ConvertedValue<std::string> to_str(e_timing_layer_weight_adjustor val) {
+        ConvertedValue<std::string> conv_value;
+        if (val == e_timing_layer_weight_adjustor::NONE)
+            conv_value.set_value("none");
+        else if (val == e_timing_layer_weight_adjustor::STEP)
+            conv_value.set_value("step");
+        else if (val == e_timing_layer_weight_adjustor::LINEAR)
+            conv_value.set_value("linear");
+        else{
+            VTR_ASSERT(val == e_timing_layer_weight_adjustor::QUADRATIC);
+            conv_value.set_value("quadratic");
+        }
+
+        return conv_value;
+    }
+
+    std::vector<std::string> default_choices() {
+        return {"none", "step", "linear", "quadratic"};
     }
 };
 
@@ -1063,8 +1312,6 @@ struct ParseRouterHeap {
             conv_value.set_value(e_heap_type::BINARY_HEAP);
         else if (str == "four_ary")
             conv_value.set_value(e_heap_type::FOUR_ARY_HEAP);
-        else if (str == "bucket")
-            conv_value.set_value(e_heap_type::BUCKET_HEAP_APPROXIMATION);
         else {
             std::stringstream msg;
             msg << "Invalid conversion from '" << str << "' to e_heap_type (expected one of: " << argparse::join(default_choices(), ", ") << ")";
@@ -1077,11 +1324,9 @@ struct ParseRouterHeap {
         ConvertedValue<std::string> conv_value;
         if (val == e_heap_type::BINARY_HEAP)
             conv_value.set_value("binary");
-        else if (val == e_heap_type::FOUR_ARY_HEAP)
-            conv_value.set_value("four_ary");
         else {
-            VTR_ASSERT(val == e_heap_type::BUCKET_HEAP_APPROXIMATION);
-            conv_value.set_value("bucket");
+            VTR_ASSERT(val == e_heap_type::FOUR_ARY_HEAP);
+            conv_value.set_value("four_ary");
         }
         return conv_value;
     }
@@ -1339,6 +1584,16 @@ argparse::ArgumentParser create_arg_parser(const std::string& prog_name, t_optio
         .action(argparse::Action::STORE_TRUE)
         .default_value("off");
 
+    stage_grp.add_argument<bool, ParseOnOff>(args.do_partitioning, "--partition")
+        .help("Run partitioning for 3D using KaHyPar mincut (pre-packing)")
+        .action(argparse::Action::STORE_TRUE)
+        .default_value("off");
+
+    stage_grp.add_argument<bool, ParseOnOff>(args.do_partitioning_post_packing, "--partition_post_pack")
+        .help("Run partitioning for 3D using KaHyPar mincut (post-packing)")
+        .action(argparse::Action::STORE_TRUE)
+        .default_value("off");
+
     stage_grp.epilog(
         "If none of the stage options are specified, all stages are run.\n"
         "Analysis is always run after routing, unless the implementation\n"
@@ -1381,7 +1636,7 @@ argparse::ArgumentParser create_arg_parser(const std::string& prog_name, t_optio
             "      * set_nets <int>\n"
             "           Sets the net drawing state\n"
             "      * set_cpd <int>\n"
-            "           Sets the criticla path delay drawing state\n"
+            "           Sets the critical path delay drawing state\n"
             "      * set_routing_util <int>\n"
             "           Sets the routing utilization drawing state\n"
             "      * set_clip_routing_util <int>\n"
@@ -1961,36 +2216,6 @@ argparse::ArgumentParser create_arg_parser(const std::string& prog_name, t_optio
         .default_value("0.8")
         .show_in(argparse::ShowIn::HELP_ONLY);
 
-    place_grp.add_argument(args.PlaceAlphaMin, "--alpha_min")
-        .help(
-            "For placement using Dusty's annealing schedule. Minimum (starting) value of alpha.")
-        .default_value("0.2")
-        .show_in(argparse::ShowIn::HELP_ONLY);
-
-    place_grp.add_argument(args.PlaceAlphaMax, "--alpha_max")
-        .help(
-            "For placement using Dusty's annealing schedule. Maximum (stopping) value of alpha.")
-        .default_value("0.9")
-        .show_in(argparse::ShowIn::HELP_ONLY);
-
-    place_grp.add_argument(args.PlaceAlphaDecay, "--alpha_decay")
-        .help(
-            "For placement using Dusty's annealing schedule. The value that alpha is scaled by after reset.")
-        .default_value("0.7")
-        .show_in(argparse::ShowIn::HELP_ONLY);
-
-    place_grp.add_argument(args.PlaceSuccessMin, "--anneal_success_min")
-        .help(
-            "For placement using Dusty's annealing schedule. Minimum success ratio when annealing before resetting the temperature to maintain the target success ratio.")
-        .default_value("0.1")
-        .show_in(argparse::ShowIn::HELP_ONLY);
-
-    place_grp.add_argument(args.PlaceSuccessTarget, "--anneal_success_target")
-        .help(
-            "For placement using Dusty's annealing schedule. Target success ratio when annealing.")
-        .default_value("0.25")
-        .show_in(argparse::ShowIn::HELP_ONLY);
-
     place_grp.add_argument<e_pad_loc_type, ParseFixPins>(args.pad_loc_type, "--fix_pins")
         .help(
             "Fixes I/O pad locations randomly during placement. Valid options:\n"
@@ -2238,7 +2463,140 @@ argparse::ArgumentParser create_arg_parser(const std::string& prog_name, t_optio
         .default_value("-2")
         .show_in(argparse::ShowIn::HELP_ONLY);
 
+    place_grp.add_argument<bool, ParseOnOff>(args.enable_kick_move, "--enable_kick_moves")
+        .help("Enable LSMC Kick Moves in placement flow")
+        .action(argparse::Action::STORE_TRUE)
+        .default_value("off");
+
+    place_grp.add_argument<int>(args.kick_move_num, "--kick_move_num")
+        .help("Number of kick moves to perform in placement flow")
+        .default_value("5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.kick_move_percent_to_swap, "--kick_move_percent_to_swap")
+        .help("Number of swaps in kick moves as a percentage of total number of blocks (swaps done with repetition)")
+        .default_value("50.0")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<e_kick_move_checkpointing, ParseKickMoveCheckpointing>(args.kick_move_checkpointing, "--kick_move_checkpointing")
+        .help("Controls type of checkpointing done during placement flow with LSMC Kick Moves")
+        .default_value("base")
+        .choices({"base", "progressive", "base_progressive", "none"})
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.kick_move_temp_inc_factor, "--kick_move_temp_inc_factor")
+        .help("Controls the temperature increase factor for kick moves")
+        .default_value("10.0")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.kick_move_rlim_inc_ratio, "--kick_move_rlim_inc_ratio")
+        .help("Controls the Rlim increase Ratio for kick moves, i.e. how much the Rlim is increased after each kick move based on the size of the grid, so if <value> is 0.5 and grid is 10x10, the Rlim will be 5 after each kick move.")
+        .default_value("0.5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.kick_move_swap_range_ratio, "--kick_move_swap_range_ratio")
+        .help("Controls the swap range Ratio for kick moves, i.e. how much the swap range is for each kick move, so if <value> is 0.5 and grid is 10x10, the swap range will be 5 for each block during the kick move.")
+        .default_value("0.5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.kick_move_activation_percentage, "--kick_move_activation_percentage")
+        .help("Acceptance rate threshold to activate kick moves, i.e. when the acceptance rate is lower than <value> during placement, kick moves will be activated.")
+        .default_value("15.0")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<e_soft_partitioning, ParseSoftPartitioning>(args.soft_partitioning, "--soft_partitioning")
+        .help(
+            "Controls whether soft partitioning is used during placement.\n"
+            " * none  : Soft partitioning disabled\n"
+            " * init_place : Soft partitioning enabled during initial placement\n"
+            " * mid_place : Soft partitioning enabled during middle placement\n"
+            " * late_place : Soft partitioning enabled during late placement\n")
+        .default_value("none")
+        .choices({"none", "init_place", "mid_place", "late_place"})
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+
+
+    place_grp.add_argument<float>(args.mid_soft_partitioning_enable_percent, "--mid_soft_partitioning_enable_percent")
+        .help("Controls when mid stage soft partitioning is enabled, <value> is the acceptance rate when layer constraints are cleared.")
+        .default_value("0.4")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<e_rl_agent_move_set, ParseRLMoveSet>(args.rl_agent_move_set, "--rl_agent_move_set")
+        .help(
+            "Controls the set of moves available to the RL agent during placement.\n"
+            )
+        .default_value("base")
+        .choices({"base", "prob", "base_layer_swap", "prob_layer_swap", "stuck_layer_swap", "stuck", "w_median_base", "w_median_only", "w_median_2opt", "stuck_base_late", "stuck_prob_late", "stuck_base_layer_swap_late", "stuck_prob_layer_swap_late", "base_stuck_late", "prob_stuck_late", "base_layer_swap_stuck_late", "prob_layer_swap_stuck_late"})
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<e_timing_tradeoff_adjustor, ParseTimingTradeoffAdjustor>(args.timing_tradeoff_adjustor, "--timing_tradeoff_adjustor")
+        .help(
+            "Controls how the timing tradeoff is adjusted during placement.\n"
+            " * none  : Timing tradeoff is not adjusted during placement\n"
+            " * linear : Timing tradeoff is adjusted linearly during placement\n"
+            " * quadratic : Timing tradeoff is adjusted quadraticly during placement\n")
+        .default_value("none")
+        .choices({"none", "linear", "quadratic"})
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.timing_tradeoff_start, "--timing_tradeoff_start")
+        .help("Starting timing tradeoff value when using --timing_tradeoff_adjustor")
+        .default_value("0.5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.timing_tradeoff_end, "--timing_tradeoff_end")
+        .help("Ending timing tradeoff value when using --timing_tradeoff_adjustor")
+        .default_value("0.5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.timing_tradeoff_start_sr, "--timing_tradeoff_start_sr")
+        .help("Starting timing tradeoff success rate when using --timing_tradeoff_adjustor")
+        .default_value("0.5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.timing_tradeoff_end_sr, "--timing_tradeoff_end_sr")
+        .help("Ending timing tradeoff success rate when using --timing_tradeoff_adjustor")
+        .default_value("0.5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<e_timing_layer_weight_adjustor, ParseTimingLayerWeightAdjustor>(args.timing_layer_weight_adjustor, "--timing_layer_weight_adjustor")
+        .help(
+            "Controls how the timing layer weight is adjusted during placement.\n"
+            " * none  : Timing layer weight is not adjusted during placement\n"
+            " * step  : Timing layer weight is set to 1.0 after a certain acceptance rate is reached\n"
+            " * linear : Timing layer weight is adjusted linearly during placement\n"
+            " * quadratic : Timing layer weight is adjusted quadraticly during placement\n")
+        .default_value("none")
+        .choices({"none", "step", "linear", "quadratic"})
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.timing_layer_weight_start_sr, "--timing_layer_weight_start_sr")
+        .help("Starting acceptance rate for adjustor of timing layer weight value when using --timing_layer_weight_adjustor")
+        .default_value("0.5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.timing_layer_weight_end_sr, "--timing_layer_weight_end_sr")
+        .help("Ending acceptance rate for adjustor of timing layer weight value when using --timing_layer_weight_adjustor, after this acceptance rate is reached the timing layer weight is 1.0")
+        .default_value("0.5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.timing_layer_weight_start, "--timing_layer_weight_start")
+        .help("Starting value for adjustor of timing layer weight when using --timing_layer_weight_adjustor")
+        .default_value("0.5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    place_grp.add_argument<float>(args.timing_layer_weight_end, "--timing_layer_weight_end")
+        .help("Ending value for adjustor of timing layer weight when using --timing_layer_weight_adjustor")
+        .default_value("0.5")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+    
     auto& place_timing_grp = parser.add_argument_group("timing-driven placement options");
+
+    place_grp.add_argument<float>(args.rl_second_state_activation_percent, "--rl_second_state_activation_percent")
+        .help("Controls the activation acceptance rate for the second state during placement.")
+        .default_value("0.15")
+        .show_in(argparse::ShowIn::HELP_ONLY);
 
     place_timing_grp.add_argument(args.PlaceTimingTradeoff, "--timing_tradeoff")
         .help(
@@ -2290,7 +2648,7 @@ argparse::ArgumentParser create_arg_parser(const std::string& prog_name, t_optio
         .show_in(argparse::ShowIn::HELP_ONLY);
 
     place_timing_grp.add_argument<e_reducer, ParseReducer>(args.place_delay_model_reducer, "--place_delay_model_reducer")
-        .help("When calculating delta delays for the placment delay model how are multiple values combined?")
+        .help("When calculating delta delays for the placement delay model how are multiple values combined?")
         .default_value("min")
         .show_in(argparse::ShowIn::HELP_ONLY);
 
@@ -2491,13 +2849,13 @@ argparse::ArgumentParser create_arg_parser(const std::string& prog_name, t_optio
         .default_value("off")
         .show_in(argparse::ShowIn::HELP_ONLY);
 
-    route_grp.add_argument(args.has_choking_spot, "--has_choking_spot")
+    route_grp.add_argument<bool, ParseOnOff>(args.router_opt_choke_points, "--router_opt_choke_points")
         .help(
             ""
-            "Some FPGA architectures, due to the lack of full connectivity inside the cluster, may have"
-            " a choking spot inside the cluster. Thus, if routing doesn't converge, enabling this option may"
-            " help it.")
-        .default_value("false")
+            "Some FPGA architectures with limited fan-out options within a cluster (e.g. fracturable LUTs with shared pins) do" 
+            " not converge well in routing unless these fan-out choke points are discovered and optimized for during net routing." 
+            " This option helps router convergence for such architectures.")
+        .default_value("on")
         .show_in(argparse::ShowIn::HELP_ONLY);
 
 
@@ -2981,6 +3339,22 @@ argparse::ArgumentParser create_arg_parser(const std::string& prog_name, t_optio
         .default_value("vpr_noc_placement_output.txt")
         .show_in(argparse::ShowIn::HELP_ONLY);
 
+    auto& partition_grp = parser.add_argument_group("partitioning options");
+    partition_grp.add_argument<float>(args.partition_imbalance_rate, "--partition_imbalance_ratio")
+        .help("Controls the maximum allowed imbalance ratio between partitions in partitioning.")
+        .default_value("0.03")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    partition_grp.add_argument<float>(args.partition_cost_alpha, "--partition_cost_alpha")
+        .help("Controls the relative importance of the hyperedges cost during partitioning. Cost_hyperedge = Num_nodes_in_edge^alpha. 0 : all hyperedges are equal, >=1 : larger hyperedges are more expensive, <1 : smaller hyperedges are more expensive.")
+        .default_value("0")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
+    partition_grp.add_argument<float>(args.partition_cost_beta, "--partition_cost_beta")
+        .help("Controls the relative importance of the node cost during partitioning. Cost_node = Num_hyperedges_in_node^beta. 0 : all nodes are equal, >=1 : larger nodes are more expensive, <1 : smaller nodes are more expensive.")
+        .default_value("0")
+        .show_in(argparse::ShowIn::HELP_ONLY);
+
 #ifndef NO_SERVER
     auto& server_grp = parser.add_argument_group("server options");
 
@@ -3007,7 +3381,7 @@ void set_conditional_defaults(t_options& args) {
      * Filenames
      */
 
-    //We may have recieved the full circuit filepath in the circuit name,
+    //We may have received the full circuit filepath in the circuit name,
     //remove the extension and any leading path elements
     VTR_ASSERT(args.CircuitName.provenance() == Provenance::SPECIFIED);
     auto name_ext = vtr::split_ext(args.CircuitName);
@@ -3096,9 +3470,9 @@ void set_conditional_defaults(t_options& args) {
     //Which placement algorithm to use?
     if (args.PlaceAlgorithm.provenance() != Provenance::SPECIFIED) {
         if (args.timing_analysis) {
-            args.PlaceAlgorithm.set(CRITICALITY_TIMING_PLACE, Provenance::INFERRED);
+            args.PlaceAlgorithm.set(e_place_algorithm::CRITICALITY_TIMING_PLACE, Provenance::INFERRED);
         } else {
-            args.PlaceAlgorithm.set(BOUNDING_BOX_PLACE, Provenance::INFERRED);
+            args.PlaceAlgorithm.set(e_place_algorithm::BOUNDING_BOX_PLACE, Provenance::INFERRED);
         }
     }
 
@@ -3112,7 +3486,7 @@ void set_conditional_defaults(t_options& args) {
     // Check for correct options combinations
     // If you are running WLdriven placement, the RL reward function should be
     // either basic or nonPenalizing basic
-    if (args.RL_agent_placement && (args.PlaceAlgorithm == BOUNDING_BOX_PLACE || !args.timing_analysis)) {
+    if (args.RL_agent_placement && (args.PlaceAlgorithm == e_place_algorithm::BOUNDING_BOX_PLACE || !args.timing_analysis)) {
         if (args.place_reward_fun.value() != "basic" && args.place_reward_fun.value() != "nonPenalizing_basic") {
             VTR_LOG_WARN(
                 "To use RLPlace for WLdriven placements, the reward function should be basic or nonPenalizing_basic.\n"
@@ -3143,18 +3517,12 @@ void set_conditional_defaults(t_options& args) {
     }
 
     //Which schedule?
-    if (args.PlaceAlphaMin.provenance() == Provenance::SPECIFIED // Any of these flags select Dusty's schedule
-        || args.PlaceAlphaMax.provenance() == Provenance::SPECIFIED
-        || args.PlaceAlphaDecay.provenance() == Provenance::SPECIFIED
-        || args.PlaceSuccessMin.provenance() == Provenance::SPECIFIED
-        || args.PlaceSuccessTarget.provenance() == Provenance::SPECIFIED) {
-        args.anneal_sched_type.set(DUSTY_SCHED, Provenance::INFERRED);
-    } else if (args.PlaceInitT.provenance() == Provenance::SPECIFIED // Any of these flags select a manual schedule
+    if (args.PlaceInitT.provenance() == Provenance::SPECIFIED // Any of these flags select a manual schedule
                || args.PlaceExitT.provenance() == Provenance::SPECIFIED
                || args.PlaceAlphaT.provenance() == Provenance::SPECIFIED) {
-        args.anneal_sched_type.set(USER_SCHED, Provenance::INFERRED);
+        args.anneal_sched_type.set(e_sched_type::USER_SCHED, Provenance::INFERRED);
     } else {
-        args.anneal_sched_type.set(AUTO_SCHED, Provenance::INFERRED); // Otherwise use the automatic schedule
+        args.anneal_sched_type.set(e_sched_type::AUTO_SCHED, Provenance::INFERRED); // Otherwise use the automatic schedule
     }
 
     /*
@@ -3233,6 +3601,7 @@ bool verify_args(const t_options& args) {
         VPR_FATAL_ERROR(VPR_ERROR_OTHER,
                         "--noc_flows_file option must be specified if --noc is turned on.\n");
     }
+
 
     return true;
 }

@@ -20,7 +20,6 @@
 #include <ctime>
 #include <sstream>
 #include <string>
-#include <unordered_set>
 
 #include "atom_netlist.h"
 #include "atom_netlist_utils.h"
@@ -46,7 +45,6 @@
 #include "route_common.h"
 #include "route_tree.h"
 #include "read_route.h"
-#include "four_ary_heap.h"
 
 #include "old_traceback.h"
 
@@ -109,7 +107,7 @@ bool read_route(const char* route_file, const t_router_opts& router_opts, bool v
     const Netlist<>& router_net_list = (flat_router) ? (const Netlist<>&)g_vpr_ctx.atom().nlist : (const Netlist<>&)g_vpr_ctx.clustering().clb_nlist;
     init_route_structs(router_net_list,
                        router_opts.bb_factor,
-                       router_opts.has_choking_spot,
+                       router_opts.has_choke_point,
                        flat_router);
 
     /*Check dimensions*/
@@ -313,7 +311,7 @@ static void process_nodes(const Netlist<>& net_list, std::ifstream& fp, ClusterN
                     vpr_throw(VPR_ERROR_ROUTE, filename, lineno,
                               "Node %d is of the wrong type", inode);
                 }
-            } else if (tokens[2] == "CHANX" || tokens[2] == "CHANY" || tokens[2] == "CHANZ") {
+            } else if (tokens[2] == "CHANX" || tokens[2] == "CHANY") {
                 if (tokens[4 + offset] != "Track:") {
                     vpr_throw(VPR_ERROR_ROUTE, filename, lineno,
                               "A %s node have to have track info", tokens[2].c_str());

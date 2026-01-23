@@ -57,10 +57,10 @@ bool vpr_flow(t_vpr_setup& vpr_setup, t_arch& arch); //Run the VPR CAD flow
 /* Packing */
 
 ///@brief Perform, load or skip the packing stage
-bool vpr_pack_flow(t_vpr_setup& vpr_setup, const t_arch& arch);
+bool vpr_pack_flow(t_vpr_setup& vpr_setup, const t_arch& arch, vtr::vector<AtomBlockId, float>& atom_criticality);
 
 ///@brief Perform packing
-bool vpr_pack(t_vpr_setup& vpr_setup, const t_arch& arch);
+bool vpr_pack(t_vpr_setup& vpr_setup, const t_arch& arch, vtr::vector<AtomBlockId, float>& atom_criticality);
 
 ///@brief Loads a previous packing
 void vpr_load_packing(t_vpr_setup& vpr_setup, const t_arch& arch);
@@ -179,7 +179,6 @@ void vpr_setup_vpr(t_options* Options,
                    t_packer_opts* PackerOpts,
                    t_placer_opts* PlacerOpts,
                    t_ap_opts* APOpts,
-                   t_annealing_sched* AnnealSched,
                    t_router_opts* RouterOpts,
                    t_analysis_opts* AnalysisOpts,
                    t_noc_opts* NocOpts,
@@ -193,6 +192,7 @@ void vpr_setup_vpr(t_options* Options,
                    bool* SaveGraphics,
                    std::string* GraphicsCommands,
                    t_power_opts* PowerOpts,
+                   t_partition_opts* PartitionOpts,
                    t_vpr_setup* vpr_setup);
 
 ///@brief Check inputs are reasonable

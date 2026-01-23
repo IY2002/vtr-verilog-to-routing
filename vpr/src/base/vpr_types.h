@@ -126,7 +126,7 @@ enum class e_router_lookahead {
 
 enum class e_route_bb_update {
     STATIC, ///<Router net bounding boxes are not updated
-    DYNAMIC ///<Rotuer net bounding boxes are updated
+    DYNAMIC ///<Router net bounding boxes are updated
 };
 
 enum class e_router_initial_timing {
@@ -456,11 +456,11 @@ enum class e_timing_update_type {
  ****************************************************************************/
 
 /* Values of number of placement available move types */
-constexpr int NUM_PL_MOVE_TYPES = 7;
+constexpr int NUM_PL_MOVE_TYPES = 20;
 constexpr int NUM_PL_NONTIMING_MOVE_TYPES = 3;
 
 /* Timing data structures end */
-enum sched_type {
+enum class e_sched_type {
     AUTO_SCHED,
     DUSTY_SCHED,
     USER_SCHED
@@ -480,6 +480,56 @@ enum pfreq {
     PLACE_ALWAYS
 };
 
+///@brief Kick Move checkpointing options
+enum class e_kick_move_checkpointing {
+    BASE, // Kick Moves are only applied to the first solution
+    PROGRESSIVE, // Kick Moves are applied progressively to the best solution found so far
+    BASE_PROGRESSIVE, // Kick Moves are applied to the first solution and progressively to the best solution found so far and then back to the first solution
+    NONE // No checkpointing is done, only the current solution is used
+};
+
+///@brief Kick Move checkpointing options
+enum class e_soft_partitioning {
+    NONE, // No soft partitioning is applied
+    INIT_PLACE, // Soft partitioning is applied after the initial placement solution, constraints removed after the initial placement
+    MID_PLACE, // Soft partitioning is applied midway during the placement process
+    LATE_PLACE // Soft partitioning is applied late in the placement process, when stage is set to LATE_IN_THE_ANNEAL
+};
+
+///@brief RL Agent set of moves
+enum class e_rl_agent_move_set {
+    BASE, // default vtr moves
+    PROB, // probabilistic layer assignment
+    BASE_LAYER_SWAP, // base flow with layer swap
+    PROB_LAYER_SWAP, // probabilistic layer assignment with layer swap
+    STUCK_LAYER_SWAP,
+    STUCK,
+    W_MEDIAN_BASE,
+    W_MEDIAN_ONLY,
+    W_MEDIAN_2OPT,
+    STUCK_BASE_LATE,
+    STUCK_PROB_LATE,
+    STUCK_BASE_LAYER_SWAP_LATE,
+    STUCK_PROB_LAYER_SWAP_LATE,
+    BASE_STUCK_LATE,
+    PROB_STUCK_LATE,
+    BASE_LAYER_SWAP_STUCK_LATE,
+    PROB_LAYER_SWAP_STUCK_LATE,
+};
+
+enum class e_timing_tradeoff_adjustor {
+    NONE,
+    LINEAR,
+    QUADRATIC
+};
+
+enum class e_timing_layer_weight_adjustor {
+    NONE,
+    STEP,
+    LINEAR,
+    QUADRATIC
+};
+
 ///@brief  Power data for t_netlist structure
 
 struct t_net_power {
@@ -487,7 +537,7 @@ struct t_net_power {
     float probability;
 
     /**
-     * @brief Transistion density - average # of transitions per clock cycle
+     * @brief Transition density - average # of transitions per clock cycle
      *
      * For example, a clock would have density = 2
      */
@@ -789,17 +839,11 @@ enum e_stage_action {
  *
  * TODO: document each packing parameter
  */
-enum e_packer_algorithm {
-    PACK_GREEDY,
-    PACK_BRUTE_FORCE
-};
-
 struct t_packer_opts {
     std::string circuit_file_name;
     std::string sdc_file_name;
     std::string output_file;
     bool global_clocks;
-    bool hill_climbing_flag;
     bool timing_driven;
     enum e_cluster_seed cluster_seed_type;
     float alpha;
@@ -818,7 +862,6 @@ struct t_packer_opts {
     int transitive_fanout_threshold;
     int feasible_block_array_size;
     e_stage_action doPacking;
-    enum e_packer_algorithm packer_algorithm;
     std::string device_layout;
     e_timing_update_type timing_update_type;
     bool use_attraction_groups;
@@ -836,23 +879,11 @@ struct t_packer_opts {
  * the obvious meanings.
  */
 struct t_annealing_sched {
-    enum sched_type type;
+    e_sched_type type;
     float inner_num;
     float init_t;
     float alpha_t;
     float exit_t;
-
-    /* Parameters for DUSTY_SCHED                                         *
-     * The alpha ranges from alpha_min to alpha_max, decaying each        *
-     * iteration by `alpha_decay`.                                        *
-     * `restart_filter` is the low-pass coefficient (EWMA) for updating   *
-     * the new starting temperature for each alpha.                       *
-     * Give up after `wait` alphas.                                       */
-    float alpha_min;
-    float alpha_max;
-    float alpha_decay;
-    float success_min;
-    float success_target;
 };
 
 /******************************************************************
@@ -876,13 +907,13 @@ struct t_annealing_sched {
  * is used when there is no timing information available (wiring only).
  * SLACK_TIMING_PLACE is mainly feasible during placement quench.
  */
-enum e_place_algorithm {
+enum class e_place_algorithm {
     BOUNDING_BOX_PLACE,
     CRITICALITY_TIMING_PLACE,
     SLACK_TIMING_PLACE
 };
 
-enum e_place_bounding_box_mode {
+enum class e_place_bounding_box_mode {
     AUTO_BB,
     CUBE_BB,
     PER_LAYER_BB
@@ -929,7 +960,7 @@ class t_place_algorithm {
 
     ///@brief Check if the algorithm belongs to the timing driven category.
     inline bool is_timing_driven() const {
-        return algo == CRITICALITY_TIMING_PLACE || algo == SLACK_TIMING_PLACE;
+        return algo == e_place_algorithm::CRITICALITY_TIMING_PLACE || algo == e_place_algorithm::SLACK_TIMING_PLACE;
     }
 
     ///@brief Accessor: returns the underlying e_place_algorithm enum value.
@@ -952,7 +983,7 @@ enum class e_pad_loc_type {
  * Currently, the supported algorithms are: epsilon greedy and softmax
  * For more details, check simpleRL_move_generator.cpp
  */
-enum e_agent_algorithm {
+enum class e_agent_algorithm {
     E_GREEDY,
     SOFTMAX
 };
@@ -1066,8 +1097,8 @@ enum class e_move_type;
 struct t_placer_opts {
     t_place_algorithm place_algorithm;
     t_place_algorithm place_quench_algorithm;
+    t_annealing_sched anneal_sched;  ///<Placement option annealing schedule
     float timing_tradeoff;
-    float place_cost_exp;
     int place_chan_width;
     enum e_pad_loc_type pad_loc_type;
     std::string constraints_file;
@@ -1113,7 +1144,6 @@ struct t_placer_opts {
     float place_agent_gamma;
     float place_dm_rlim;
     e_agent_space place_agent_space;
-    //int place_timing_cost_func;
     std::string place_reward_fun;
     float place_crit_limit;
     int place_constraint_expand;
@@ -1123,6 +1153,34 @@ struct t_placer_opts {
 
     int placer_debug_block;
     int placer_debug_net;
+
+    bool enable_kick_move;
+    int kick_move_num;
+    float kick_move_percent_to_swap;
+    e_kick_move_checkpointing kick_move_checkpointing;
+    float kick_move_temp_inc_factor;
+    float kick_move_rlim_inc_ratio;
+    float kick_move_swap_range_ratio;
+    float kick_move_activation_percentage;
+
+    e_soft_partitioning soft_partitioning;
+    float mid_soft_partitioning_enable_percent;
+
+    e_rl_agent_move_set rl_agent_move_set;
+
+    e_timing_tradeoff_adjustor timing_tradeoff_adjustor;
+    float timing_tradeoff_start;
+    float timing_tradeoff_end;
+    float timing_tradeoff_start_sr;
+    float timing_tradeoff_end_sr;
+
+    e_timing_layer_weight_adjustor timing_layer_weight_adjustor;
+    float timing_layer_weight_start_sr;
+    float timing_layer_weight_end_sr;
+    float timing_layer_weight_start;
+    float timing_layer_weight_end;
+
+    float rl_second_state_activation_percent;
 
     /**
      * @brief Tile types that should be used during delay sampling.
@@ -1341,7 +1399,7 @@ struct t_router_opts {
     bool generate_rr_node_overuse_report;
 
     bool flat_routing;
-    bool has_choking_spot;
+    bool has_choke_point;
 
     int custom_3d_sb_fanin_fanout = 1;
 
@@ -1514,7 +1572,7 @@ struct t_det_routing_arch {
 struct t_seg_details {
     int length = 0;
     int start = 0;
-    bool longline = 0;
+    bool longline = false;
     std::unique_ptr<bool[]> sb;
     std::unique_ptr<bool[]> cb;
     short arch_wire_switch = 0;
@@ -1522,7 +1580,7 @@ struct t_seg_details {
     short arch_opin_between_dice_switch = 0;
     float Rmetal = 0;
     float Cmetal = 0;
-    bool twisted = 0;
+    bool twisted = false;
     enum Direction direction = Direction::NONE;
     int group_start = 0;
     int group_size = 0;
@@ -1625,7 +1683,10 @@ constexpr bool is_src_sink(e_rr_type type) { return (type == SOURCE || type == S
  *                     is being used.
  *   @param backward_path_cost  Total cost of the path up to and including this
  *                     node.
- *   @param occ        The current occupancy of the associated rr node
+ *   @param R_upstream Upstream resistance to ground from this node in the current
+ *                     path search (connection routing), including the resistance
+ *                     of the node itself (device_ctx.rr_nodes[index].R).
+ *   @param occ        The current occupancy of the associated rr node.
  */
 struct t_rr_node_route_inf {
     RREdgeId prev_edge;
@@ -1633,6 +1694,7 @@ struct t_rr_node_route_inf {
     float acc_cost;
     float path_cost;
     float backward_path_cost;
+    float R_upstream;
 
   public: //Accessors
     short occ() const { return occ_; }
@@ -1741,6 +1803,14 @@ struct t_server_opts {
     int port_num = -1;
 };
 
+struct t_partition_opts {
+    bool partition; ///<Should partitioning be performed?
+    bool partition_post_pack; ///<Should partitioning be performed after packing?
+    float imbalance_rate; ///<Imbalance rate for partitioning
+    float cost_alpha; ///<Cost alpha for partitioning
+    float cost_beta; ///<Cost beta for partitioning
+};
+
 ///@brief Store settings for VPR
 struct t_vpr_setup {
     bool TimingEnabled;             ///<Is VPR timing enabled
@@ -1751,7 +1821,6 @@ struct t_vpr_setup {
     t_packer_opts PackerOpts;       ///<Options for packer
     t_placer_opts PlacerOpts;       ///<Options for placer
     t_ap_opts APOpts;               ///<Options for analytical placer
-    t_annealing_sched AnnealSched;  ///<Placement option annealing schedule
     t_router_opts RouterOpts;       ///<router options
     t_analysis_opts AnalysisOpts;   ///<Analysis options
     t_noc_opts NocOpts;             ///<Options for the NoC
@@ -1772,6 +1841,7 @@ struct t_vpr_setup {
     bool two_stage_clock_routing;              ///<How clocks should be routed in the presence of a dedicated clock network
     bool exit_before_pack;                     ///<Exits early before starting packing (useful for collecting statistics without running/loading any stages)
     unsigned int num_workers;                  ///Maximum number of worker threads (determined from an env var or cmdline option)
+    t_partition_opts PartitionOpts;      ///<Partitioning options
 };
 
 class RouteStatus {
@@ -1802,5 +1872,7 @@ struct pair_hash {
         return std::hash<ClusterBlockId>()(p.first) ^ (std::hash<ClusterBlockId>()(p.second) << 1);
     }
 };
+
+
 
 #endif

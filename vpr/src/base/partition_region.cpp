@@ -112,3 +112,35 @@ const PartitionRegion& get_device_partition_region() {
 
     return device_pr;
 }
+
+std::vector<PartitionRegion> block_partition_regions;
+
+PartitionRegion& get_block_partition_region_on_device(int block_index, const std::vector<int> block_compressed_layers) {
+    if (block_partition_regions.size() <= block_index || block_partition_regions[block_index].empty()) {
+        block_partition_regions.resize(block_index + 1);
+
+        const auto& grid = g_vpr_ctx.device().grid;
+
+        // this function is supposed to be called when the grid is constructed
+        VTR_ASSERT_SAFE(grid.grid_size() != 0);
+
+        const int width = static_cast<int>(grid.width());
+        const int height = static_cast<int>(grid.height());
+
+        // min layer is the minimum value in block_compressed_layers
+        int layer_min = *std::min_element(block_compressed_layers.begin(), block_compressed_layers.end());
+
+        // max layer is the maximum value in block_compressed_layers
+        int layer_max = *std::max_element(block_compressed_layers.begin(), block_compressed_layers.end());
+
+        // create new region for this block type
+        Region block_region(0,0,width-1,height-1,layer_min,layer_max);
+        block_region.set_sub_tile(NO_SUBTILE);
+
+        PartitionRegion block_pr;
+        block_pr.add_to_part_region(block_region);
+        block_partition_regions[block_index] = block_pr;
+    }
+
+    return block_partition_regions[block_index];
+}
