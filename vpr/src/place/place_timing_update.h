@@ -27,7 +27,7 @@ void perform_full_timing_update(const PlaceCritParams& crit_params,
                                 NetPinTimingInvalidator* pin_timing_invalidator,
                                 SetupTimingInfo* timing_info,
                                 t_placer_costs* costs,
-                                PlacerState& placer_state);
+                                PlacerState& placer_state, float layer_weight = 1.0f);
 
 ///@brief Update timing information based on the current block positions.
 void update_timing_classes(const PlaceCritParams& crit_params,
@@ -41,7 +41,7 @@ void update_timing_classes(const PlaceCritParams& crit_params,
 void update_timing_cost(const PlaceDelayModel* delay_model,
                         const PlacerCriticalities* criticalities,
                         PlacerState& placer_state,
-                        double* timing_cost);
+                        double* timing_cost, float layer_weight = 1.0f);
 
 ///@brief Incrementally updates timing cost based on the current delays and criticality estimates.
 void update_td_costs(const PlaceDelayModel* delay_model,
@@ -53,7 +53,7 @@ void update_td_costs(const PlaceDelayModel* delay_model,
 void comp_td_costs(const PlaceDelayModel* delay_model,
                    const PlacerCriticalities& place_crit,
                    PlacerState& placer_state,
-                   double* timing_cost);
+                   double* timing_cost, float layer_weight = 1.0f);
 
 /**
  * @brief Commit all the setup slack values from the PlacerSetupSlacks

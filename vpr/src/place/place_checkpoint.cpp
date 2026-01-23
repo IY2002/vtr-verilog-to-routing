@@ -9,6 +9,8 @@ double t_placement_checkpoint::get_cp_bb_cost() const { return costs_.bb_cost; }
 
 bool t_placement_checkpoint::cp_is_valid() const { return valid_; }
 
+double t_placement_checkpoint::get_cp_timing_cost() const { return costs_.timing_cost; }
+
 void t_placement_checkpoint::save_placement(const vtr::vector_map<ClusterBlockId, t_block_loc>& block_locs,
                                             const t_placer_costs& placement_costs,
                                             const float critical_path_delay) {
@@ -25,15 +27,18 @@ t_placer_costs t_placement_checkpoint::restore_placement(vtr::vector_map<Cluster
     return costs_;
 }
 
-void save_placement_checkpoint_if_needed(const vtr::vector_map<ClusterBlockId, t_block_loc>& block_locs,
+bool save_placement_checkpoint_if_needed(const vtr::vector_map<ClusterBlockId, t_block_loc>& block_locs,
                                          t_placement_checkpoint& placement_checkpoint,
                                          const std::shared_ptr<SetupTimingInfo>& timing_info,
                                          t_placer_costs& costs,
                                          float cpd) {
-    if (!placement_checkpoint.cp_is_valid() || (timing_info->least_slack_critical_path().delay() < placement_checkpoint.get_cp_cpd() && costs.bb_cost <= placement_checkpoint.get_cp_bb_cost())) {
+    if (!placement_checkpoint.cp_is_valid() || (timing_info->least_slack_critical_path().delay() < placement_checkpoint.get_cp_cpd() && costs.bb_cost <= 1.05 * placement_checkpoint.get_cp_bb_cost())) {
+    // if (!placement_checkpoint.cp_is_valid() || (costs.timing_cost < placement_checkpoint.get_cp_timing_cost() && costs.bb_cost <= 1.05 * placement_checkpoint.get_cp_bb_cost())) {
         placement_checkpoint.save_placement(block_locs, costs, cpd);
         VTR_LOG("Checkpoint saved: bb_costs=%g, TD costs=%g, CPD=%7.3f (ns) \n", costs.bb_cost, costs.timing_cost, 1e9 * cpd);
+        return true;
     }
+    return false;
 }
 
 void restore_best_placement(PlacerState& placer_state,
@@ -42,7 +47,7 @@ void restore_best_placement(PlacerState& placer_state,
                             t_placer_costs& costs,
                             std::unique_ptr<PlacerCriticalities>& placer_criticalities,
                             std::unique_ptr<PlacerSetupSlacks>& placer_setup_slacks,
-                            std::unique_ptr<PlaceDelayModel>& place_delay_model,
+                            std::shared_ptr<PlaceDelayModel>& place_delay_model,
                             std::unique_ptr<NetPinTimingInvalidator>& pin_timing_invalidator,
                             PlaceCritParams crit_params,
                             std::optional<NocCostHandler>& noc_cost_handler) {
@@ -51,7 +56,11 @@ void restore_best_placement(PlacerState& placer_state,
      * 2) The checkpoint's wire-length cost is either better than the current solution,
      * or at least is not more than 5% worse than the current solution.
      */
+    
+    VTR_LOG("Checkpoint: bb_costs=%g, TD costs=%g, CPD=%7.3f (ns) \n", placement_checkpoint.get_cp_bb_cost(), placement_checkpoint.get_cp_timing_cost(), 1e9 * placement_checkpoint.get_cp_cpd());
+    VTR_LOG("Current:    bb_costs=%g, TD costs=%g, CPD=%7.3f (ns) \n", costs.bb_cost, costs.timing_cost, 1e9 * timing_info->least_slack_critical_path().delay());
     if (placement_checkpoint.cp_is_valid() && timing_info->least_slack_critical_path().delay() > placement_checkpoint.get_cp_cpd() && costs.bb_cost * 1.05 > placement_checkpoint.get_cp_bb_cost()) {
+    //  if (placement_checkpoint.cp_is_valid() && (costs.timing_cost > placement_checkpoint.get_cp_timing_cost() && costs.bb_cost * 1.05 > placement_checkpoint.get_cp_bb_cost())) {
         //restore the latest placement checkpoint
 
         costs = placement_checkpoint.restore_placement(placer_state.mutable_block_locs(), placer_state.mutable_grid_blocks());

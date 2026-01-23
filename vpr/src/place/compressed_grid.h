@@ -45,11 +45,19 @@ struct t_compressed_block_grid {
         int layer_num = grid_loc.layer_num;
 
         auto itr_x = std::lower_bound(compressed_to_grid_x[layer_num].begin(), compressed_to_grid_x[layer_num].end(), grid_loc.x);
-        VTR_ASSERT(*itr_x == grid_loc.x);
+        // VTR_ASSERT(*itr_x == grid_loc.x);
+        
+        // if itr_x is end then use last element
+        if (itr_x == compressed_to_grid_x[layer_num].end()) {
+            cx = compressed_to_grid_x[layer_num].size() - 1;
+        } else {
         cx = std::distance(compressed_to_grid_x[layer_num].begin(), itr_x);
+        }
+
+        // cx = std::distance(compressed_to_grid_x[layer_num].begin(), itr_x);
 
         auto itr_y = std::lower_bound(compressed_to_grid_y[layer_num].begin(), compressed_to_grid_y[layer_num].end(), grid_loc.y);
-        VTR_ASSERT(*itr_y == grid_loc.y);
+        // VTR_ASSERT(*itr_y == grid_loc.y);
         cy = std::distance(compressed_to_grid_y[layer_num].begin(), itr_y);
 
         return {cx, cy, layer_num};

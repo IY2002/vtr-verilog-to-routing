@@ -5,7 +5,8 @@
 std::pair<std::unique_ptr<MoveGenerator>, std::unique_ptr<MoveGenerator>> create_move_generators(PlacerState& placer_state,
                                                                                                  const t_placer_opts& placer_opts,
                                                                                                  int move_lim,
-                                                                                                 double noc_attraction_weight) {
+                                                                                                 double noc_attraction_weight,
+                                                                                                 vtr::RngContainer& rng) {
     e_reward_function reward_fun = string_to_reward(placer_opts.place_reward_fun);
     std::pair<std::unique_ptr<MoveGenerator>, std::unique_ptr<MoveGenerator>> move_generators;
 
@@ -21,8 +22,8 @@ std::pair<std::unique_ptr<MoveGenerator>, std::unique_ptr<MoveGenerator>> create
                     move_name.c_str(),
                     placer_opts.place_static_move_prob[move_type]);
         }
-        move_generators.first = std::make_unique<StaticMoveGenerator>(placer_state, reward_fun, placer_opts.place_static_move_prob);
-        move_generators.second = std::make_unique<StaticMoveGenerator>(placer_state, reward_fun, placer_opts.place_static_move_prob);
+        move_generators.first = std::make_unique<StaticMoveGenerator>(placer_state, reward_fun, rng, placer_opts.place_static_move_prob);
+        move_generators.second = std::make_unique<StaticMoveGenerator>(placer_state, reward_fun, rng, placer_opts.place_static_move_prob);
     } else { //RL based placement
         /* For the non timing driven placement: the agent has a single state   *
          *     - Available moves are (Uniform / Median / Centroid)             *
@@ -31,7 +32,7 @@ std::pair<std::unique_ptr<MoveGenerator>, std::unique_ptr<MoveGenerator>> create
          *     - 1st state: includes 4 moves (Uniform / Median / Centroid /    *
          *                  WeightedCentroid)                                  *
          *      If agent should propose block type as well as the mentioned    *
-         *      move types, 1st state Q-table size is:                          *
+         *      move types, 1st state Q-table size is:                         *
          *                 4 move types * number of block types in the netlist *
          *      if not, the Q-table size is : 4                                *
          *                                                                     *
@@ -43,49 +44,248 @@ std::pair<std::unique_ptr<MoveGenerator>, std::unique_ptr<MoveGenerator>> create
          *      only move type.                                                *
          *      This state is activated late in the anneal and in the Quench   */
 
-        std::vector<e_move_type> first_state_avail_moves{e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID};
+        std::vector<e_move_type> first_state_avail_moves;
+        std::vector<e_move_type> second_state_avail_moves;
+        if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::BASE){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID}); //, , e_move_type::TWO_OPT, e_move_type::LAYER_SWAP , e_move_type::LAYER_SWAP_RANGED
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID}); // , e_move_type::TWO_OPT, 
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID, e_move_type::W_MEDIAN , e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::PROB) {
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN_PROB, e_move_type::CENTROID_PROB});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::W_CENTROID_PROB});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN_PROB, e_move_type::CENTROID_PROB});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_PROB, e_move_type::W_MEDIAN_PROB , e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::BASE_LAYER_SWAP) {
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID, e_move_type::LAYER_SWAP_RANGED});
         if (placer_opts.place_algorithm.is_timing_driven()) {
             first_state_avail_moves.push_back(e_move_type::W_CENTROID);
         }
 
-        std::vector<e_move_type> second_state_avail_moves{e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID};
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID, e_move_type::LAYER_SWAP_RANGED});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID, e_move_type::W_MEDIAN, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::PROB_LAYER_SWAP) {
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN_PROB, e_move_type::CENTROID_PROB, e_move_type::LAYER_SWAP_RANGED});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::W_CENTROID_PROB});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN_PROB, e_move_type::CENTROID_PROB, e_move_type::LAYER_SWAP_RANGED});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_PROB, e_move_type::W_MEDIAN_PROB, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::STUCK_LAYER_SWAP) {
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK, e_move_type::LAYER_SWAP_RANGED});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_LAYER_STUCK});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK, e_move_type::LAYER_SWAP_RANGED});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_LAYER_STUCK, e_move_type::W_MEDIAN_LAYER_STUCK, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::STUCK) {
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_LAYER_STUCK});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_LAYER_STUCK, e_move_type::W_MEDIAN_LAYER_STUCK, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::W_MEDIAN_BASE){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID}); //, , e_move_type::TWO_OPT, e_move_type::LAYER_SWAP , e_move_type::LAYER_SWAP_RANGED
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID, e_move_type::W_MEDIAN});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID}); // , e_move_type::TWO_OPT, 
         if (placer_opts.place_algorithm.is_timing_driven()) {
             second_state_avail_moves.insert(second_state_avail_moves.end(),
                                             {e_move_type::W_CENTROID, e_move_type::W_MEDIAN, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
         }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::W_MEDIAN_ONLY){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID}); //, , e_move_type::TWO_OPT, e_move_type::LAYER_SWAP , e_move_type::LAYER_SWAP_RANGED
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID, e_move_type::W_MEDIAN});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID}); // , e_move_type::TWO_OPT, 
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID, e_move_type::W_MEDIAN});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::W_MEDIAN_2OPT){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID, e_move_type::TWO_OPT}); //, , e_move_type::TWO_OPT, e_move_type::LAYER_SWAP , e_move_type::LAYER_SWAP_RANGED
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID, e_move_type::W_MEDIAN});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID, e_move_type::TWO_OPT}); // , e_move_type::TWO_OPT, 
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID, e_move_type::W_MEDIAN});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::STUCK_BASE_LATE){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK}); //, , e_move_type::TWO_OPT, e_move_type::LAYER_SWAP , e_move_type::LAYER_SWAP_RANGED
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_LAYER_STUCK});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID, e_move_type::W_MEDIAN}); //, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::STUCK_PROB_LATE){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::W_CENTROID_LAYER_STUCK});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN_PROB, e_move_type::CENTROID_PROB});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_PROB, e_move_type::W_MEDIAN_PROB}); //, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::STUCK_BASE_LAYER_SWAP_LATE){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK}); //, , e_move_type::TWO_OPT, e_move_type::LAYER_SWAP , e_move_type::LAYER_SWAP_RANGED
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.push_back(e_move_type::W_CENTROID_LAYER_STUCK);
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID, e_move_type::LAYER_SWAP_RANGED});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID, e_move_type::W_MEDIAN}); // e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::STUCK_PROB_LAYER_SWAP_LATE){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::W_CENTROID_LAYER_STUCK});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN_PROB, e_move_type::CENTROID_PROB, e_move_type::LAYER_SWAP_RANGED});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_PROB, e_move_type::W_MEDIAN_PROB}); //, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::BASE_STUCK_LATE){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID}); //, , e_move_type::TWO_OPT, e_move_type::LAYER_SWAP , e_move_type::LAYER_SWAP_RANGED
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_LAYER_STUCK, e_move_type::W_MEDIAN_LAYER_STUCK}); //, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::PROB_STUCK_LATE){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN_PROB, e_move_type::CENTROID_PROB});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::W_CENTROID_PROB});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_LAYER_STUCK, e_move_type::W_MEDIAN_LAYER_STUCK}); //, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::BASE_LAYER_SWAP_STUCK_LATE){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN, e_move_type::CENTROID,  e_move_type::LAYER_SWAP_RANGED}); //, , e_move_type::TWO_OPT, e_move_type::LAYER_SWAP , e_move_type::LAYER_SWAP_RANGED
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.push_back(e_move_type::W_CENTROID);
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_LAYER_STUCK, e_move_type::W_MEDIAN_LAYER_STUCK}); //, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else if (placer_opts.rl_agent_move_set == e_rl_agent_move_set::PROB_LAYER_SWAP_STUCK_LATE){
+            first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::UNIFORM, e_move_type::MEDIAN_PROB, e_move_type::CENTROID_PROB, e_move_type::LAYER_SWAP_RANGED});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                first_state_avail_moves.insert(first_state_avail_moves.end(), {e_move_type::W_CENTROID_PROB});
+            }
+
+            second_state_avail_moves.insert(second_state_avail_moves.end(), {e_move_type::UNIFORM_LAYER_STUCK, e_move_type::MEDIAN_LAYER_STUCK, e_move_type::CENTROID_LAYER_STUCK});
+            if (placer_opts.place_algorithm.is_timing_driven()) {
+                second_state_avail_moves.insert(second_state_avail_moves.end(),
+                                                {e_move_type::W_CENTROID_LAYER_STUCK, e_move_type::W_MEDIAN_LAYER_STUCK}); //, e_move_type::CRIT_UNIFORM, e_move_type::FEASIBLE_REGION});
+            }
+        } else {    
+            VPR_FATAL_ERROR(VPR_ERROR_PLACE,
+                            "Unknown RL agent move set : %d \n",
+                            placer_opts.rl_agent_move_set);
+        }
+
+
 
         if (noc_attraction_weight > 0.0f) {
             first_state_avail_moves.push_back(e_move_type::NOC_ATTRACTION_CENTROID);
             second_state_avail_moves.push_back(e_move_type::NOC_ATTRACTION_CENTROID);
         }
 
-        if (placer_opts.place_agent_algorithm == E_GREEDY) {
+        if (placer_opts.place_agent_algorithm == e_agent_algorithm::E_GREEDY) {
             std::unique_ptr<EpsilonGreedyAgent> karmed_bandit_agent1, karmed_bandit_agent2;
             //agent's 1st state
             if (placer_opts.place_agent_space == e_agent_space::MOVE_BLOCK_TYPE) {
                 VTR_LOG("Using simple RL 'Epsilon Greedy agent' for choosing move and block types\n");
                 karmed_bandit_agent1 = std::make_unique<EpsilonGreedyAgent>(first_state_avail_moves,
                                                                             e_agent_space::MOVE_BLOCK_TYPE,
-                                                                            placer_opts.place_agent_epsilon);
+                                                                            placer_opts.place_agent_epsilon,
+                                                                            rng);
             } else {
                 VTR_LOG("Using simple RL 'Epsilon Greedy agent' for choosing move types\n");
                 karmed_bandit_agent1 = std::make_unique<EpsilonGreedyAgent>(first_state_avail_moves,
                                                                             e_agent_space::MOVE_TYPE,
-                                                                            placer_opts.place_agent_epsilon);
+                                                                            placer_opts.place_agent_epsilon,
+                                                                            rng);
             }
             karmed_bandit_agent1->set_step(placer_opts.place_agent_gamma, move_lim);
             move_generators.first = std::make_unique<SimpleRLMoveGenerator>(placer_state,
                                                                             reward_fun,
+                                                                            rng,
                                                                             karmed_bandit_agent1,
                                                                             noc_attraction_weight,
                                                                             placer_opts.place_high_fanout_net);
             //agent's 2nd state
             karmed_bandit_agent2 = std::make_unique<EpsilonGreedyAgent>(second_state_avail_moves,
                                                                         e_agent_space::MOVE_TYPE,
-                                                                        placer_opts.place_agent_epsilon);
+                                                                        placer_opts.place_agent_epsilon,
+                                                                        rng);
             karmed_bandit_agent2->set_step(placer_opts.place_agent_gamma, move_lim);
             move_generators.second = std::make_unique<SimpleRLMoveGenerator>(placer_state,
                                                                              reward_fun,
+                                                                             rng,
                                                                              karmed_bandit_agent2,
                                                                              noc_attraction_weight,
                                                                              placer_opts.place_high_fanout_net);
@@ -95,21 +295,25 @@ std::pair<std::unique_ptr<MoveGenerator>, std::unique_ptr<MoveGenerator>> create
             if (placer_opts.place_agent_space == e_agent_space::MOVE_BLOCK_TYPE) {
                 VTR_LOG("Using simple RL 'Softmax agent' for choosing move and block types\n");
                 karmed_bandit_agent1 = std::make_unique<SoftmaxAgent>(first_state_avail_moves,
-                                                                      e_agent_space::MOVE_BLOCK_TYPE);
+                                                                      e_agent_space::MOVE_BLOCK_TYPE,
+                                                                      rng);
             } else {
                 VTR_LOG("Using simple RL 'Softmax agent' for choosing move types\n");
                 karmed_bandit_agent1 = std::make_unique<SoftmaxAgent>(first_state_avail_moves,
-                                                                      e_agent_space::MOVE_TYPE);
+                                                                      e_agent_space::MOVE_TYPE,
+                                                                      rng);
             }
             karmed_bandit_agent1->set_step(placer_opts.place_agent_gamma, move_lim);
             move_generators.first = std::make_unique<SimpleRLMoveGenerator>(placer_state,
                                                                             reward_fun,
+                                                                            rng,
                                                                             karmed_bandit_agent1,
                                                                             noc_attraction_weight,
                                                                             placer_opts.place_high_fanout_net);
             //agent's 2nd state
             karmed_bandit_agent2 = std::make_unique<SoftmaxAgent>(second_state_avail_moves,
-                                                                  e_agent_space::MOVE_TYPE);
+                                                                  e_agent_space::MOVE_TYPE,
+                                                                  rng);
             karmed_bandit_agent2->set_step(placer_opts.place_agent_gamma, move_lim);
             move_generators.second = std::make_unique<SimpleRLMoveGenerator>(placer_state,
                                                                              reward_fun,
@@ -122,40 +326,20 @@ std::pair<std::unique_ptr<MoveGenerator>, std::unique_ptr<MoveGenerator>> create
     return move_generators;
 }
 
-void assign_current_move_generator(std::unique_ptr<MoveGenerator>& move_generator,
-                                   std::unique_ptr<MoveGenerator>& move_generator2,
-                                   e_agent_state agent_state,
-                                   const t_placer_opts& placer_opts,
-                                   bool in_quench,
-                                   std::unique_ptr<MoveGenerator>& current_move_generator) {
-    if (in_quench) {
-        if (placer_opts.place_quench_algorithm.is_timing_driven() && placer_opts.place_agent_multistate)
-            current_move_generator = std::move(move_generator2);
-        else
-            current_move_generator = std::move(move_generator);
-    } else {
-        if (agent_state == e_agent_state::EARLY_IN_THE_ANNEAL || !placer_opts.place_agent_multistate)
-            current_move_generator = std::move(move_generator);
-        else
-            current_move_generator = std::move(move_generator2);
-    }
-}
-
-void update_move_generator(std::unique_ptr<MoveGenerator>& move_generator,
+MoveGenerator& select_move_generator(std::unique_ptr<MoveGenerator>& move_generator,
                            std::unique_ptr<MoveGenerator>& move_generator2,
                            e_agent_state agent_state,
                            const t_placer_opts& placer_opts,
-                           bool in_quench,
-                           std::unique_ptr<MoveGenerator>& current_move_generator) {
+                                     bool in_quench) {
     if (in_quench) {
         if (placer_opts.place_quench_algorithm.is_timing_driven() && placer_opts.place_agent_multistate)
-            move_generator2 = std::move(current_move_generator);
+            return *move_generator2;
         else
-            move_generator = std::move(current_move_generator);
+            return *move_generator;
     } else {
         if (agent_state == e_agent_state::EARLY_IN_THE_ANNEAL || !placer_opts.place_agent_multistate)
-            move_generator = std::move(current_move_generator);
+            return *move_generator;
         else
-            move_generator2 = std::move(current_move_generator);
+            return *move_generator2;
     }
 }

@@ -56,12 +56,15 @@ class t_placement_checkpoint {
     //return the WL cost of the saved checkpoint
     double get_cp_bb_cost() const;
 
+    // return the timing cost of the saved checkpoint
+    double get_cp_timing_cost() const;
+
     //return true if the checkpoint is valid
     bool cp_is_valid() const;
 };
 
 //save placement checkpoint if checkpointing is enabled and checkpoint conditions occurred
-void save_placement_checkpoint_if_needed(const vtr::vector_map<ClusterBlockId, t_block_loc>& block_locs,
+bool save_placement_checkpoint_if_needed(const vtr::vector_map<ClusterBlockId, t_block_loc>& block_locs,
                                          t_placement_checkpoint& placement_checkpoint,
                                          const std::shared_ptr<SetupTimingInfo>& timing_info,
                                          t_placer_costs& costs,
@@ -74,7 +77,7 @@ void restore_best_placement(PlacerState& placer_state,
                             t_placer_costs& costs,
                             std::unique_ptr<PlacerCriticalities>& placer_criticalities,
                             std::unique_ptr<PlacerSetupSlacks>& placer_setup_slacks,
-                            std::unique_ptr<PlaceDelayModel>& place_delay_model,
+                            std::shared_ptr<PlaceDelayModel>& place_delay_model,
                             std::unique_ptr<NetPinTimingInvalidator>& pin_timing_invalidator,
                             PlaceCritParams crit_params,
                             std::optional<NocCostHandler>& noc_cost_handler);

@@ -35,23 +35,23 @@ std::unique_ptr<PlaceDelayModel> alloc_lookups_and_delay_model(const Netlist<>& 
                                                                const t_router_opts& router_opts,
                                                                t_det_routing_arch* det_routing_arch,
                                                                std::vector<t_segment_inf>& segment_inf,
-                                                               const t_direct_inf* directs,
-                                                               const int num_directs,
+                                                               const std::vector<t_direct_inf>& directs,
                                                                bool is_flat);
 
 ///@brief Returns the delay of one point to point connection.
 float comp_td_single_connection_delay(const PlaceDelayModel* delay_model,
                                       const vtr::vector_map<ClusterBlockId, t_block_loc>& block_locs,
                                       ClusterNetId net_id,
-                                      int ipin);
+                                      int ipin, float layer_weight = 1.0);
 
 ///@brief Recompute all point to point delays, updating `connection_delay` matrix.
 void comp_td_connection_delays(const PlaceDelayModel* delay_model,
-                               PlacerState& placer_state);
+                               PlacerState& placer_state, float layer_weight = 1.0f);
 
 ///@brief Abstract interface to a placement delay model.
 class PlaceDelayModel {
   public:
+    bool written = false;
     virtual ~PlaceDelayModel() = default;
 
     ///@brief Computes place delay model.
@@ -62,12 +62,16 @@ class PlaceDelayModel {
         int longest_length)
         = 0;
 
+    inline void confirm_write(){
+        written = true;
+    }
+
     /**
      * @brief Returns the delay estimate between the specified block pins.
      *
      * Either compute or read methods must be invoked before invoking delay.
      */
-    virtual float delay(const t_physical_tile_loc& from_loc, int from_pin, const t_physical_tile_loc& to_loc, int to_pin) const = 0;
+    virtual float delay(const t_physical_tile_loc& from_loc, int from_pin, const t_physical_tile_loc& to_loc, int to_pin, e_side from_side, e_side to_side) const = 0;
 
     ///@brief Dumps the delay model to an echo file.
     virtual void dump_echo(std::string filename) const = 0;
@@ -106,7 +110,7 @@ class DeltaDelayModel : public PlaceDelayModel {
         const t_placer_opts& placer_opts,
         const t_router_opts& router_opts,
         int longest_length) override;
-    float delay(const t_physical_tile_loc& from_loc, int /*from_pin*/, const t_physical_tile_loc& to_loc, int /*to_pin*/) const override;
+    float delay(const t_physical_tile_loc& from_loc, int /*from_pin*/, const t_physical_tile_loc& to_loc, int /*to_pin*/, e_side from_side, e_side to_side) const override;
     void dump_echo(std::string filepath) const override;
 
     void read(const std::string& file) override;
@@ -137,7 +141,7 @@ class OverrideDelayModel : public PlaceDelayModel {
         int longest_length) override;
     // returns delay from the specified (x,y) to the specified (x,y) with both endpoints on layer_num and the
     // specified from and to pins
-    float delay(const t_physical_tile_loc& from_loc, int from_pin, const t_physical_tile_loc& to_loc, int to_pin) const override;
+    float delay(const t_physical_tile_loc& from_loc, int from_pin, const t_physical_tile_loc& to_loc, int to_pin,  e_side from_side, e_side to_side) const override;
     void dump_echo(std::string filepath) const override;
 
     void read(const std::string& file) override;
@@ -241,11 +245,13 @@ class SimpleDelayModel : public PlaceDelayModel {
         const t_placer_opts& placer_opts,
         const t_router_opts& router_opts,
         int longest_length) override;
-    float delay(const t_physical_tile_loc& from_loc, int /*from_pin*/, const t_physical_tile_loc& to_loc, int /*to_pin*/) const override;
+    float delay(const t_physical_tile_loc& from_loc, int /*from_pin*/, const t_physical_tile_loc& to_loc, int /*to_pin*/,  e_side from_side, e_side to_side) const override;
     void dump_echo(std::string /*filepath*/) const override {}
 
     void read(const std::string& /*file*/) override {}
-    void write(const std::string& /*file*/) const override {}
+    void write(const std::string& /*file*/) const override;
+    
+    
 
   private:
     /**
@@ -258,4 +264,5 @@ class SimpleDelayModel : public PlaceDelayModel {
      *One might argue that this variability could also occur for dx and dy. However, we are operating under the assumption that the FPGA fabric architecture is regular.
      */
     vtr::NdMatrix<float, 5> delays_; // [0..num_physical_type-1][0..num_layers-1][0..num_layers-1][0..max_dx][0..max_dy]
+    
 };
