@@ -19,6 +19,7 @@ class VprTimingGraphResolver : public tatum::TimingGraphNameResolver {
 
     std::string node_name(tatum::NodeId node) const override;
     std::string node_type_name(tatum::NodeId node) const override;
+    int node_id(tatum::NodeId node) const override;
 
     tatum::EdgeDelayBreakdown edge_delay_breakdown(tatum::EdgeId edge, tatum::DelayType delay_type) const override;
 

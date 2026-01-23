@@ -120,3 +120,12 @@ e_timing_report_detail PreClusterTimingGraphResolver::detail_level() const {
 void PreClusterTimingGraphResolver::set_detail_level(e_timing_report_detail report_detail) {
     detail_level_ = report_detail;
 }
+
+int PreClusterTimingGraphResolver::node_id(tatum::NodeId node) const {
+    //Return the numeric ID of the node
+    //This assumes NodeId is a StrongId with an underlying integral type
+
+    AtomPinId pin = netlist_lookup_.tnode_atom_pin(node);
+
+    return static_cast<int>(netlist_.pin_block(pin));
+}

@@ -363,3 +363,12 @@ void VprTimingGraphResolver::get_detailed_interconnect_components_helper(std::ve
 
     components.insert(components.end(), interconnect_components.rbegin(), interconnect_components.rend()); // append the completed "interconnect_component" to "component_vector"
 }
+
+int VprTimingGraphResolver::node_id(tatum::NodeId node) const {
+    //Return the numeric ID of the node
+    //This assumes NodeId is a StrongId with an underlying integral type
+
+    AtomPinId pin = netlist_lookup_.tnode_atom_pin(node);
+
+    return static_cast<int>(netlist_.pin_block(pin));
+}
