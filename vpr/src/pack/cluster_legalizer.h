@@ -421,6 +421,13 @@ public:
         return cluster.pr;
     }
 
+    /// @brief Gets the current number of molecules in the cluster.
+    inline size_t get_num_molecules_in_cluster(LegalizationClusterId cluster_id) const {
+        VTR_ASSERT_SAFE(cluster_id.is_valid() && (size_t)cluster_id < legalization_clusters_.size());
+        const LegalizationCluster& cluster = legalization_clusters_[cluster_id];
+        return cluster.molecules.size();
+    }
+
     /// @brief Gets the ID of the cluster that contains the given atom block.
     inline LegalizationClusterId get_atom_cluster(AtomBlockId blk_id) const {
         VTR_ASSERT_SAFE(blk_id.is_valid() && (size_t)blk_id < atom_cluster_.size());
@@ -432,6 +439,21 @@ public:
     inline bool is_atom_clustered(AtomBlockId blk_id) const {
         // Simply, if the atom is not in an invalid cluster, it has been clustered.
         return get_atom_cluster(blk_id) != LegalizationClusterId::INVALID();
+    }
+
+    /// @brief Returns true if the given molecule has been packed into a
+    ///        cluster, false otherwise.
+    inline bool is_mol_clustered(t_pack_molecule* mol) const {
+        VTR_ASSERT_SAFE(mol != nullptr);
+        // Check if the molecule has been assigned a cluster. It has not been
+        // assigned a cluster if it does not have an entry in the map or if the
+        // ID of the cluster it is assigned to is invalid.
+        const auto iter = molecule_cluster_.find(mol);
+        if (iter == molecule_cluster_.end())
+            return false;
+        if (!iter->second.is_valid())
+            return false;
+        return true;
     }
 
     /// @brief Returns a reference to the target_external_pin_util object. This

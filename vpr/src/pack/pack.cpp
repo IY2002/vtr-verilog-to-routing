@@ -1,10 +1,11 @@
 #include <unordered_set>
 
 #include "SetupGrid.h"
-#include "cluster.h"
 #include "cluster_legalizer.h"
 #include "cluster_util.h"
+#include "constraints_report.h"
 #include "globals.h"
+#include "greedy_clusterer.h"
 #include "pack.h"
 #include "prepack.h"
 #include "vpr_context.h"
@@ -12,7 +13,7 @@
 #include "vpr_types.h"
 #include "vtr_assert.h"
 #include "vtr_log.h"
-
+#include "partition_creator.h"
 static bool try_size_device_grid(const t_arch& arch,
                                  const std::map<t_logical_block_type_ptr, size_t>& num_type_instances,
                                  float target_device_utilization,
@@ -20,16 +21,19 @@ static bool try_size_device_grid(const t_arch& arch,
 
 bool try_pack(t_packer_opts* packer_opts,
               const t_analysis_opts* analysis_opts,
+              const t_partition_opts* partition_opts,
               const t_arch* arch,
               const t_model* user_models,
               const t_model* library_models,
               float interc_delay,
-              std::vector<t_lb_type_rr_node>* lb_type_rr_graphs) {
+              std::vector<t_lb_type_rr_node>* lb_type_rr_graphs, vtr::vector<AtomBlockId, float>& atom_criticality) {
     const AtomContext& atom_ctx = g_vpr_ctx.atom();
     const DeviceContext& device_ctx = g_vpr_ctx.device();
+    // The clusterer modifies the device context by increasing the size of the
+    // device if needed.
+    DeviceContext& mutable_device_ctx = g_vpr_ctx.mutable_device();
 
     std::unordered_set<AtomNetId> is_clock, is_global;
-    t_clustering_data clustering_data;
     VTR_LOG("Begin packing '%s'.\n", packer_opts->circuit_file_name.c_str());
 
     is_clock = alloc_and_load_is_clock();
@@ -70,6 +74,15 @@ bool try_pack(t_packer_opts* packer_opts,
         VTR_LOG("Using inter-cluster delay: %g\n", packer_opts->inter_cluster_net_delay);
     }
 
+    if (partition_opts->partition) {
+        VTR_LOG("Partitioning is enabled.\n");
+         const auto& atom_nlist = g_vpr_ctx.atom().nlist;
+        PartitionCreator partition_creator;
+        partition_creator.create_partition_constraints(g_vpr_ctx.mutable_floorplanning(), g_vpr_ctx.mutable_device(), atom_nlist, prepacker, 2, partition_opts->imbalance_rate, packer_opts, analysis_opts, partition_opts->cost_alpha, partition_opts->cost_beta);
+    }
+
+    
+
     // During clustering, a block is related to un-clustered primitives with nets.
     // This relation has three types: low fanout, high fanout, and transitive
     // high_fanout_thresholds stores the threshold for nets to a block type to
@@ -91,7 +104,6 @@ bool try_pack(t_packer_opts* packer_opts,
     }
 
     int pack_iteration = 1;
-    bool floorplan_regions_overfull = false;
 
     // Initialize the cluster legalizer.
     ClusterLegalizer cluster_legalizer(atom_ctx.nlist,
@@ -107,30 +119,31 @@ bool try_pack(t_packer_opts* packer_opts,
                                        packer_opts->feasible_block_array_size,
                                        packer_opts->pack_verbosity);
 
+    // cluster_legalizer.set_log_verbosity(4);
+
     VTR_LOG("Packing with pin utilization targets: %s\n", cluster_legalizer.get_target_external_pin_util().to_string().c_str());
     VTR_LOG("Packing with high fanout thresholds: %s\n", high_fanout_thresholds.to_string().c_str());
 
+    // Initialize the greedy clusterer.
+    GreedyClusterer clusterer(*packer_opts,
+                              *analysis_opts,
+                              atom_ctx.nlist,
+                              *arch,
+                              high_fanout_thresholds,
+                              is_clock,
+                              is_global);
+
     while (true) {
-        free_clustering_data(*packer_opts, clustering_data);
-
-
         //Cluster the netlist
         //  num_used_type_instances: A map used to save the number of used
         //                           instances from each logical block type.
         std::map<t_logical_block_type_ptr, size_t> num_used_type_instances;
-        num_used_type_instances = do_clustering(*packer_opts,
-                                                *analysis_opts,
-                                                arch,
+        num_used_type_instances = clusterer.do_clustering(cluster_legalizer,
                                                 prepacker,
-                                                cluster_legalizer,
-                                                is_clock,
-                                                is_global,
                                                 allow_unrelated_clustering,
                                                 balance_block_type_util,
                                                 attraction_groups,
-                                                floorplan_regions_overfull,
-                                                high_fanout_thresholds,
-                                                clustering_data);
+                                                          mutable_device_ctx, atom_criticality);
 
         //Try to size/find a device
         bool fits_on_device = try_size_device_grid(*arch, num_used_type_instances, packer_opts->target_device_utilization, packer_opts->device_layout);
@@ -139,6 +152,7 @@ bool try_pack(t_packer_opts* packer_opts,
          * is not dense enough and there are floorplan constraints, it is presumed that the constraints are the cause
          * of the floorplan not fitting, so attraction groups are turned on for later iterations.
          */
+        bool floorplan_regions_overfull = floorplan_constraints_regions_overfull(cluster_legalizer);
         bool floorplan_not_fitting = (floorplan_regions_overfull || g_vpr_ctx.floorplanning().constraints.get_num_partitions() > 0);
 
         if (fits_on_device && !floorplan_regions_overfull) {
@@ -214,13 +228,13 @@ bool try_pack(t_packer_opts* packer_opts,
                     resource_avail += ", ";
                 }
 
-                resource_reqs += std::string(iter->first->name) + ": " + std::to_string(iter->second);
+                resource_reqs += iter->first->name + ": " + std::to_string(iter->second);
 
                 int num_instances = 0;
                 for (auto type : iter->first->equivalent_tiles)
                     num_instances += grid.num_instances(type, -1);
 
-                resource_avail += std::string(iter->first->name) + ": " + std::to_string(num_instances);
+                resource_avail += iter->first->name + ": " + std::to_string(num_instances);
             }
 
             VPR_FATAL_ERROR(VPR_ERROR_OTHER, "Failed to find device which satisfies resource requirements required: %s (available %s)", resource_reqs.c_str(), resource_avail.c_str());
@@ -260,9 +274,6 @@ bool try_pack(t_packer_opts* packer_opts,
 
     //check clustering and output it
     check_and_output_clustering(cluster_legalizer, *packer_opts, is_clock, arch);
-
-    // Free Data Structures
-    free_clustering_data(*packer_opts, clustering_data);
 
     VTR_LOG("\n");
     VTR_LOG("Netlist conversion complete.\n");
@@ -352,7 +363,7 @@ static bool try_size_device_grid(const t_arch& arch,
         if (util > 1.) {
             fits_on_device = false;
         }
-        VTR_LOG("\tBlock Utilization: %.2f Type: %s\n", util, type.name);
+        VTR_LOG("\tBlock Utilization: %.2f Type: %s\n", util, type.name.c_str());
     }
     VTR_LOG("\n");
 
