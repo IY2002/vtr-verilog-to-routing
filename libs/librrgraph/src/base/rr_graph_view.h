@@ -290,6 +290,7 @@ class RRGraphView {
      * @note To return true, the RRNode must be completely contained within the specified bounding box,
      * with the edges of the bounding box being inclusive.
      */
+
     inline bool node_is_inside_bounding_box(RRNodeId node, vtr::Rect<int> bounding_box) const {
         return (node_xhigh(node) <= bounding_box.xmax()
                 && node_xlow(node) >= bounding_box.xmin()

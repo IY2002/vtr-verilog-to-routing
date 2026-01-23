@@ -1,7 +1,8 @@
-#ifndef RR_GRAPH_FWD_H
-#define RR_GRAPH_FWD_H
+#ifndef RR_GRAPH_OBJ_FWD_H
+#define RR_GRAPH_OBJ_FWD_H
 
 #include <cstdint>
+
 #include "vtr_strong_id.h"
 
 /***************************************************************
@@ -12,6 +13,8 @@
 
 //Forward declaration
 class t_rr_graph_storage;
+
+class RRGraph;
 
 struct rr_node_id_tag;
 struct rr_edge_id_tag;

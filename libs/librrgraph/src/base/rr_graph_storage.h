@@ -338,7 +338,6 @@ class t_rr_graph_storage {
      * - num_non_configurable_edges(RRNodeId)
      * - edge_id(RRNodeId, t_edge_size)
      * - edge_sink_node(RRNodeId, t_edge_size)
-     * - edge_source_node(RRNodeId, t_edge_size)
      * - edge_switch(RRNodeId, t_edge_size)
      *
      * Only call these methods after partition_edges has been invoked.
@@ -786,7 +785,6 @@ class t_rr_graph_storage {
         return side_tt[size_t(side)];
     }
 
-  public:
     inline void clear_node_first_edge() {
         node_first_edge_.clear();
     }

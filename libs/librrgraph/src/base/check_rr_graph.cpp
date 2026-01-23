@@ -285,7 +285,7 @@ void check_rr_graph(const RRGraphView& rr_graph,
                                     continue;
                                 }
                                 VTR_LOG_ERROR("in check_rr_graph: node %d (%s) at (%d,%d) block=%s side=%s pin=%s has no fanin.\n",
-                                              inode, rr_graph.node_type_string(rr_node), rr_graph.node_xlow(rr_node), rr_graph.node_ylow(rr_node), block_type->name, TOTAL_2D_SIDE_STRINGS[node_side], pin_name.c_str());
+                                              inode, rr_graph.node_type_string(rr_node), rr_graph.node_xlow(rr_node), rr_graph.node_ylow(rr_node), block_type->name.c_str(), TOTAL_2D_SIDE_STRINGS[node_side], pin_name.c_str());
                             }
                         }
                     } else {
@@ -426,10 +426,11 @@ void check_rr_node(const RRGraphView& rr_graph,
             break;
 
         case CHANX:
-            if (xhigh > int(grid.width()) - 1 || yhigh > int(grid.height()) - 2 || yhigh != ylow) {
-                VPR_FATAL_ERROR(VPR_ERROR_ROUTE,
-                                "in check_rr_node: CHANX out of range for endpoints (%d,%d) and (%d,%d)\n", xlow, ylow, xhigh, yhigh);
-            }
+            // This is commented out to work with 3D SB type, once CHANZ is fully introduced then this will work fine
+            // if (xlow < 1 || xhigh > int(grid.width()) - 2 || yhigh > int(grid.height()) - 2 || yhigh != ylow) {
+            //     VPR_FATAL_ERROR(VPR_ERROR_ROUTE,
+            //                     "in check_rr_node: CHANX out of range for endpoints (%d,%d) and (%d,%d)\n", xlow, ylow, xhigh, yhigh);
+            // }
             if (route_type == GLOBAL && xlow != xhigh) {
                 VPR_ERROR(VPR_ERROR_ROUTE,
                           "in check_rr_node: node %d spans multiple channel segments (not allowed for global routing).\n", inode);
@@ -437,10 +438,11 @@ void check_rr_node(const RRGraphView& rr_graph,
             break;
 
         case CHANY:
-            if (xhigh > int(grid.width()) - 2 || yhigh > int(grid.height()) - 1 || xlow != xhigh) {
-                VPR_FATAL_ERROR(VPR_ERROR_ROUTE,
-                                "Error in check_rr_node: CHANY out of range for endpoints (%d,%d) and (%d,%d)\n", xlow, ylow, xhigh, yhigh);
-            }
+            // This is commented out to work with 3D SB type, once CHANZ is fully introduced then this will work fine
+            // if (xhigh > int(grid.width()) - 2 || ylow < 1 || yhigh > int(grid.height()) - 2 || xlow != xhigh) {
+            //     VPR_FATAL_ERROR(VPR_ERROR_ROUTE,
+            //                     "Error in check_rr_node: CHANY out of range for endpoints (%d,%d) and (%d,%d)\n", xlow, ylow, xhigh, yhigh);
+            // }
             if (route_type == GLOBAL && ylow != yhigh) {
                 VPR_ERROR(VPR_ERROR_ROUTE,
                           "in check_rr_node: node %d spans multiple channel segments (not allowed for global routing).\n", inode);

@@ -687,33 +687,27 @@ class RrGraphSerializer final : public uxsd::RrGraphBase<RrGraphContextTypes> {
      *   <xs:attribute name="xhigh" type="xs:int" use="required" />
      *   <xs:attribute name="yhigh" type="xs:int" use="required" />
      *   <xs:attribute name="side" type="loc_side" />
-     *   <xs:attribute name="ptc" type="xs:string" use="required" />
+     *   <xs:attribute name="ptc" type="xs:int" use="required" />
      * </xs:complexType>
      */
 
-    inline int init_node_loc(int& inode, int xhigh, int xlow, int yhigh, int ylow) final {
+    inline int init_node_loc(int& inode, int ptc, int xhigh, int xlow, int yhigh, int ylow) final {
         auto node = (*rr_nodes_)[inode];
         RRNodeId node_id = node.id();
 
         rr_graph_builder_->set_node_coordinates(node_id, xlow, ylow, xhigh, yhigh);
         // We set the layer num 0 - If it is specified in the XML, it will be overwritten
         rr_graph_builder_->set_node_layer(node_id, 0);
-       
+        rr_graph_builder_->set_node_ptc_num(node_id, ptc);
         return inode;
     }
     inline void finish_node_loc(int& /*inode*/) final {}
     inline const t_rr_node get_node_loc(const t_rr_node& node) final {
         return node;
     }
-    inline void set_node_loc_ptc(const char* ptc, int& inode) final {
-        auto node = (*rr_nodes_)[inode];
-        RRNodeId node_id = node.id();
-        return rr_graph_builder_->set_node_ptc_nums(node_id, std::string(ptc));
-    }
 
-    inline const char* get_node_loc_ptc(const t_rr_node& node) final {
-        temp_string_ = rr_graph_builder_->node_ptc_nums_to_string(node.id());
-        return temp_string_.c_str();
+    inline int get_node_loc_ptc(const t_rr_node& node) final {
+        return rr_graph_->node_ptc_num(node.id());
     }
     inline int get_node_loc_layer(const t_rr_node& node) final {
         return rr_graph_->node_layer(node.id());
@@ -880,7 +874,6 @@ class RrGraphSerializer final : public uxsd::RrGraphBase<RrGraphContextTypes> {
      */
     inline void preallocate_rr_nodes_node(void*& /*ctx*/, size_t size) final {
         rr_graph_builder_->reserve_nodes(size);
-        rr_graph_builder_->resize_node_ptc_nums(size);
     }
     inline int add_rr_nodes_node(void*& /*ctx*/, unsigned int capacity, unsigned int id, uxsd::enum_node_type type) final {
         // make_room_in_vector will not allocate if preallocate_rr_nodes_node
@@ -1456,7 +1449,7 @@ class RrGraphSerializer final : public uxsd::RrGraphBase<RrGraphContextTypes> {
             report_error(
                 "Incorrect number of pins (%zu != %u) in %zu pin_class in block %s",
                 size, class_inf->num_pins,
-                class_idx, tile->name);
+                class_idx, tile->name.c_str());
         }
     }
     inline const std::pair<const t_physical_tile_type*, int> add_pin_class_pin(std::tuple<const t_physical_tile_type*, const t_class*, int>& context, int ptc) final {
@@ -1479,7 +1472,7 @@ class RrGraphSerializer final : public uxsd::RrGraphBase<RrGraphContextTypes> {
             report_error(
                 "Incorrect number of pins (%zu != %u) in %zu pin_class in block %s",
                 pin_count, class_inf->num_pins,
-                class_idx, tile->name);
+                class_idx, tile->name.c_str());
         }
     }
 
@@ -1518,7 +1511,7 @@ class RrGraphSerializer final : public uxsd::RrGraphBase<RrGraphContextTypes> {
         return tile->index;
     }
     inline const char* get_block_type_name(const t_physical_tile_type*& tile) final {
-        return tile->name;
+        return tile->name.c_str();
     }
     inline int get_block_type_width(const t_physical_tile_type*& tile) final {
         return tile->width;
@@ -1543,10 +1536,10 @@ class RrGraphSerializer final : public uxsd::RrGraphBase<RrGraphContextTypes> {
      */
     inline void set_block_type_name(const char* name, std::pair<const t_physical_tile_type*, int>& context) final {
         const t_physical_tile_type* tile = context.first;
-        if (strcmp(tile->name, name) != 0) {
+        if (tile->name != name) {
             report_error(
                 "Architecture file does not match RR graph's block name: arch uses name %s, RR graph uses name %s",
-                tile->name, name);
+                tile->name.c_str(), name);
         }
     }
 
@@ -1865,16 +1858,9 @@ class RrGraphSerializer final : public uxsd::RrGraphBase<RrGraphContextTypes> {
         /* Add the correct node into the vector */
         for (size_t inode = 0; inode < rr_nodes_->size(); inode++) {
             auto node = (*rr_nodes_)[inode];
-            /* Set track numbers as a node may have multiple ptc */
-            if (rr_graph_builder.node_contain_multiple_ptc(node.id())) {
-                if (CHANX == rr_graph_->node_type(node.id()) || CHANY == rr_graph_->node_type(node.id())) {
-                    rr_graph_builder.add_track_node_to_lookup(node.id());
-                }
-            } else {
                 rr_graph_builder.add_node_to_all_locs(node.id());
             }    
         }
-    }
 
     // Enum converters from/to uxsd types
 
@@ -2044,8 +2030,6 @@ class RrGraphSerializer final : public uxsd::RrGraphBase<RrGraphContextTypes> {
                 return uxsd::enum_node_type::CHANX;
             case CHANY:
                 return uxsd::enum_node_type::CHANY;
-            case CHANZ:
-                return uxsd::enum_node_type::CHANZ;
             case SOURCE:
                 return uxsd::enum_node_type::SOURCE;
             case SINK:
