@@ -9,6 +9,8 @@
 #include "tatum/report/TimingPath.hpp"
 #include "tatum/report/TimingPathCollector.hpp"
 #include "tatum/report/TimingReportTagRetriever.hpp"
+#include "/home/OpenFPGA_LaZagna_merge/OpenFPGA_testing/OpenFPGA/vtr-verilog-to-routing/vpr/src/base/vpr_context.h"
+#include "/home/OpenFPGA_LaZagna_merge/OpenFPGA_testing/OpenFPGA/vtr-verilog-to-routing/vpr/src/pack/prepack.h"
 
 namespace tatum { namespace detail {
 
@@ -82,6 +84,10 @@ class TimingReporter {
         void report_unconstrained_hold(std::string filename, const tatum::HoldTimingAnalyzer& hold_analyzer) const;
         void report_unconstrained_hold(std::ostream& os, const tatum::HoldTimingAnalyzer& hold_analyzer) const;
 
+        void create_timing_file(std::string filename, 
+                                         const SetupTimingAnalyzer& setup_analyzer,
+                                         size_t npaths, const std::map<t_pack_molecule*, int>& molecule_to_vertex, const Prepacker& prepacker) const;
+
     private:
         struct PathSkew {
             NodeId launch_node;
@@ -143,9 +149,16 @@ class TimingReporter {
                                          Time path,
                                          Time offset) const;
 
+        void make_timing_file(std::ostream& os,
+                                   const std::vector<TimingPath>& paths,
+                                   const std::map<t_pack_molecule*, int>& molecule_to_vertex,
+                                   const Prepacker& prepacker) const;
+
         bool nearly_equal(const tatum::Time& lhs, const tatum::Time& rhs) const;
 
         size_t estimate_point_print_width(const TimingPath& path) const;
+
+        void report_timing_path_simple(std::ostream& os, const TimingPath& timing_path, const std::map<t_pack_molecule*, int>& molecule_to_vertex, const Prepacker& prepacker, Time max_delay) const;
 
     private:
         const TimingGraphNameResolver& name_resolver_;

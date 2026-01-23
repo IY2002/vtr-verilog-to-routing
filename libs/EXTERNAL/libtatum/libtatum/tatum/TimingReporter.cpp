@@ -91,6 +91,16 @@ void TimingReporter::report_timing_setup(std::string filename,
     report_timing_setup(os, setup_analyzer, npaths);
 }
 
+void TimingReporter::create_timing_file(std::string filename, 
+                                         const SetupTimingAnalyzer& setup_analyzer,
+                                         size_t npaths, const std::map<t_pack_molecule*, int>& molecule_to_vertex, const Prepacker& prepacker) const {
+    std::ofstream os(filename);
+    auto paths = path_collector_.collect_worst_setup_timing_paths(timing_graph_, setup_analyzer, npaths);
+
+    make_timing_file(os, paths, molecule_to_vertex, prepacker);
+
+}
+
 void TimingReporter::report_timing_setup(std::ostream& os, 
                                          const SetupTimingAnalyzer& setup_analyzer,
                                          size_t npaths) const {
@@ -216,6 +226,9 @@ void TimingReporter::report_timing(std::ostream& os,
                                    const std::vector<TimingPath>& paths) const {
     tatum::OsFormatGuard flag_guard(os);
 
+    // std::string timing_file = "timing_file.txt";
+    // std::ofstream timing_os(timing_file);
+
     os << "#Timing report of worst " << paths.size() << " path(s)\n";
     os << "# Unit scale: " << std::setprecision(0) << std::scientific << unit_scale_ << " seconds\n";
     os << "# Output precision: " << precision_ << "\n";
@@ -225,10 +238,38 @@ void TimingReporter::report_timing(std::ostream& os,
     for(const auto& path : paths) {
         os << "#Path " << ++i << "\n";
         report_timing_path(os, path);
+        // report_timing_path_simple(timing_os, path);
         os << "\n";
     }
 
     os << "#End of timing report\n";
+
+}
+
+/*
+    Timing File creator for partitioning, normalizes the timing values to the maximum delay
+*/
+void TimingReporter::make_timing_file(std::ostream& os,
+                                   const std::vector<TimingPath>& paths, 
+                                   const std::map<t_pack_molecule*, int>& molecule_to_vertex, 
+                                   const Prepacker& prepacker) const {
+    // First pass: find the maximum delay value
+    Time max_delay(0.0);
+    for(const auto& path : paths) {
+        Time path_delay;
+        if (!path.data_arrival_path().elements().empty()) {
+            const TimingPathElem& last_elem = *(--path.data_arrival_path().elements().end());
+            path_delay = last_elem.tag().time();
+        }
+        if (path_delay.value() > max_delay.value()) {
+            max_delay = path_delay;
+        }
+    }
+    
+    // Second pass: write normalized values
+    for(const auto& path : paths) {
+        report_timing_path_simple(os, path, molecule_to_vertex, prepacker, max_delay);
+    }
 }
 
 void TimingReporter::report_timing_path(std::ostream& os, const TimingPath& timing_path) const {
@@ -239,11 +280,11 @@ void TimingReporter::report_timing_path(std::ostream& os, const TimingPath& timi
     os << "Startpoint: " << name_resolver_.node_name(path_info.startpoint()) 
        << " (" << name_resolver_.node_type_name(path_info.startpoint())
         << " clocked by " << timing_constraints_.clock_domain_name(path_info.launch_domain())
-        << ")\n";
+        << ")" << "Node id: " << name_resolver_.node_id(path_info.startpoint()) << "\n";
     os << "Endpoint  : " << name_resolver_.node_name(path_info.endpoint()) 
         << " (" << name_resolver_.node_type_name(path_info.endpoint()) 
         << " clocked by " << timing_constraints_.clock_domain_name(path_info.capture_domain())
-        << ")\n";
+        << ")" << "Node id: " << name_resolver_.node_id(path_info.endpoint()) << "\n";
 
     if(path_info.type() == TimingType::SETUP) {
         os << "Path Type : setup" << "\n";
@@ -723,6 +764,57 @@ size_t TimingReporter::estimate_point_print_width(const TimingPath& path) const 
         }
     }
     return width;
+}
+
+void TimingReporter::report_timing_path_simple(std::ostream& os, const TimingPath& timing_path, 
+                                               const std::map<t_pack_molecule*, int>& molecule_to_vertex, 
+                                               const Prepacker& prepacker, Time max_delay) const {
+    TimingPathInfo path_info = timing_path.path_info();
+    
+    // Collect all nodes in the path
+    std::vector<NodeId> path_nodes;
+    
+    // Add nodes from clock launch path
+    for(const TimingPathElem& elem : timing_path.clock_launch_path().elements()) {
+        path_nodes.push_back(elem.node());
+    }
+    
+    // Add nodes from data arrival path
+    for(const TimingPathElem& elem : timing_path.data_arrival_path().elements()) {
+        path_nodes.push_back(elem.node());
+    }
+    
+    // Calculate total delay (this is actually the arrival time at the endpoint)
+    Time total_delay;
+    if (!timing_path.data_arrival_path().elements().empty()) {
+        const TimingPathElem& last_elem = *(--timing_path.data_arrival_path().elements().end());
+        total_delay = last_elem.tag().time();
+    }
+    
+    // Normalize the delay value
+    double normalized_delay = 0.0;
+    if (max_delay.value() > 0.0) {
+        normalized_delay = total_delay.value() / max_delay.value();
+    }
+    
+    // Output in the desired format (make delay negative so they are seen as timing critical)
+    os << std::fixed << std::setprecision(6) 
+       << -normalized_delay;
+    
+    for(NodeId node : path_nodes) {
+        // Need to convert NodeId to numeric ID
+        // This depends on your NodeId implementation
+        t_pack_molecule* molecule_ptr = prepacker.get_atom_molecule((AtomBlockId) name_resolver_.node_id(node));
+            
+        if (molecule_ptr != nullptr) {
+            auto it = molecule_to_vertex.find(molecule_ptr);
+            if (it != molecule_to_vertex.end()) {
+                os << " " << static_cast<unsigned int>(it->second) - 1;
+            }
+        }
+    }
+    os << "\n";
+    os.flush();
 }
 
 } //namespace tatum

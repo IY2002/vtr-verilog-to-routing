@@ -25,6 +25,7 @@ class TimingGraphNameResolver {
 
         virtual std::string node_name(tatum::NodeId node) const = 0;
         virtual std::string node_type_name(tatum::NodeId node) const = 0;
+        virtual int node_id(tatum::NodeId node) const = 0;
         virtual EdgeDelayBreakdown edge_delay_breakdown(tatum::EdgeId /*edge*/, DelayType /*delay_type*/) const {
             //Default no edge delay breakdown
             return EdgeDelayBreakdown();
