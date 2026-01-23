@@ -76,6 +76,30 @@ add_library(libvpr STATIC
 
 target_include_directories(libvpr PUBLIC ${LIB_INCLUDE_DIRS})
 
+add_library(vpr_interface INTERFACE)
+
+target_link_libraries(vpr_interface INTERFACE
+    libarchfpga
+    libvtrutil
+    librrgraph
+    sockpp
+)
+
+target_include_directories(vpr_interface INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/base
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/pack
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/route
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/util
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/power
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/place
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analysis
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/timing
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/noc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/server
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/analytical_place
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/draw
+)
 
 # Find if Eigen is installed. Eigen is used within the Analytical Solver of the
 # Analytical Placement flow. If Eigen is not installed, certain solvers cannot
