@@ -1165,7 +1165,7 @@ void dump_track_to_pin_map(t_track_to_pin_lookup& track_to_pin_map,
                         for (int width = 0; width < types[i].width; ++width) {
                             for (int height = 0; height < types[i].height; ++height) {
                                 for (int side = 0; side < 4; ++side) {
-                                    fprintf(fp, "\nTYPE:%s width:%d height:%d layer:%d\n", types[i].name, width, height, layer);
+                                    fprintf(fp, "\nTYPE:%s width:%d height:%d layer:%d\n", types[i].name.c_str(), width, height, layer);
                                     fprintf(fp, "\nSIDE:%d TRACK:%d \n", side, track);
                                     for (size_t con = 0; con < track_to_pin_map[i][track][width][height][layer][side].size(); con++) {
                                         fprintf(fp, "%d ", track_to_pin_map[i][track][width][height][layer][side][con]);
@@ -1660,7 +1660,7 @@ bool verify_rr_node_indices(const DeviceGrid& grid,
                 for (t_rr_type rr_type : RR_TYPES) {
                     /* Get the list of nodes at a specific location (x, y) */
                     std::vector<RRNodeId> nodes_from_lookup;
-                    if (rr_type == CHANX || rr_type == CHANY || rr_type == CHANZ) {
+                    if (rr_type == CHANX || rr_type == CHANY) {
                         nodes_from_lookup = rr_graph.node_lookup().find_channel_nodes(l, x, y, rr_type);
                     } else {
                         nodes_from_lookup = rr_graph.node_lookup().find_grid_nodes_at_all_sides(l, x, y, rr_type);
@@ -2945,6 +2945,84 @@ void load_sblock_pattern_lookup(const int i,
  * If seg_type_index == UNDEFINED, all segments in the channel are considered. Otherwise this routine
  * only looks at segments that belong to the specified segment type. */
 
+// static void label_wire_muxes(const int chan_num,
+//                              const int seg_num,
+//                              const t_chan_seg_details* seg_details,
+//                              const int seg_type_index,
+//                              const int max_len,
+//                              const enum Direction dir,
+//                              const int max_chan_width,
+//                              const bool check_cb,
+//                              std::vector<int>& labels,
+//                              int* num_wire_muxes,
+//                              int* num_wire_muxes_cb_restricted) {
+//     int itrack, start, end, num_labels, num_labels_restricted, pass;
+//     bool is_endpoint;
+
+//     /* COUNT pass then a LOAD pass */
+//     num_labels = 0;
+//     num_labels_restricted = 0;
+//     for (pass = 0; pass < 2; ++pass) {
+//         /* Alloc the list on LOAD pass */
+//         if (pass > 0) {
+//             labels.resize(num_labels);
+//             std::fill(labels.begin(), labels.end(), 0);
+//             num_labels = 0;
+//         }
+
+//         /* Find the tracks that are starting. */
+//         for (itrack = 0; itrack < max_chan_width; ++itrack) {
+//             start = get_seg_start(seg_details, itrack, chan_num, seg_num);
+//             end = get_seg_end(seg_details, itrack, start, chan_num, max_len);
+
+//             /* Skip tracks that are undefined */
+//             if (seg_details[itrack].length() == 0) {
+//                 continue;
+//             }
+
+//             /* Skip tracks going the wrong way */
+//             if (seg_details[itrack].direction() != dir) {
+//                 continue;
+//             }
+
+//             if (seg_type_index != UNDEFINED) {
+//                 /* skip tracks that don't belong to the specified segment type */
+//                 if (seg_details[itrack].index() != seg_type_index) {
+//                     continue;
+//                 }
+//             }
+
+//             /* Determine if we are a wire startpoint */
+//             is_endpoint = (seg_num == start);
+//             if (Direction::DEC == seg_details[itrack].direction()) {
+//                 is_endpoint = (seg_num == end);
+//             }
+
+//             /* Count the labels and load if LOAD pass */
+//             if (is_endpoint) {
+//                 /*
+//                  * not all wire endpoints can be driven by OPIN (depending on the <cb> pattern in the arch file)
+//                  * the check_cb is targeting this arch specification:
+//                  * if this function is called by get_unidir_opin_connections(),
+//                  * then we need to check if mux connections can be added to this type of wire,
+//                  * otherwise, this function should not consider <cb> specification.
+//                  */
+//                 if ((!check_cb) || (seg_details[itrack].cb(0) == true)) {
+//                     if (pass > 0) {
+//                         labels[num_labels] = itrack;
+//                     }
+//                     ++num_labels;
+//                 }
+//                 if (pass > 0)
+//                     num_labels_restricted += (seg_details[itrack].cb(0) == true) ? 1 : 0;
+//             }
+//         }
+//     }
+
+//     *num_wire_muxes = num_labels;
+//     *num_wire_muxes_cb_restricted = num_labels_restricted;
+// }
+
 static void label_wire_muxes(const int chan_num,
                              const int seg_num,
                              const t_chan_seg_details* seg_details,
@@ -2956,70 +3034,61 @@ static void label_wire_muxes(const int chan_num,
                              std::vector<int>& labels,
                              int* num_wire_muxes,
                              int* num_wire_muxes_cb_restricted) {
-    int itrack, start, end, num_labels, num_labels_restricted, pass;
-    bool is_endpoint;
+    
+    // OPTIMIZATION 1: Single pass instead of two
+    labels.clear();
+    labels.reserve(max_chan_width / 4);  // guess to avoid many reallocations
+    
+    int num_labels_restricted = 0;
+    
+    // OPTIMIZATION 2: Cache boolean results since segment direction is always == dir
+    // This avoids repeated checks for the same direction in the loop
+    const bool check_dec = (dir == Direction::DEC);
+    
+    for (int itrack = 0; itrack < max_chan_width; ++itrack) {
+        // OPTIMIZATION 3: Early exit checks before expensive operations
+        const auto& track_detail = seg_details[itrack];
 
-    /* COUNT pass then a LOAD pass */
-    num_labels = 0;
-    num_labels_restricted = 0;
-    for (pass = 0; pass < 2; ++pass) {
-        /* Alloc the list on LOAD pass */
-        if (pass > 0) {
-            labels.resize(num_labels);
-            std::fill(labels.begin(), labels.end(), 0);
-            num_labels = 0;
-        }
-
-        /* Find the tracks that are starting. */
-        for (itrack = 0; itrack < max_chan_width; ++itrack) {
-            start = get_seg_start(seg_details, itrack, chan_num, seg_num);
-            end = get_seg_end(seg_details, itrack, start, chan_num, max_len);
-
-            /* Skip tracks that are undefined */
-            if (seg_details[itrack].length() == 0) {
-                continue;
-            }
-
-            /* Skip tracks going the wrong way */
-            if (seg_details[itrack].direction() != dir) {
-                continue;
-            }
-
-            if (seg_type_index != UNDEFINED) {
-                /* skip tracks that don't belong to the specified segment type */
-                if (seg_details[itrack].index() != seg_type_index) {
+        // Skip undefined tracks
+        if (track_detail.length() == 0) continue;
+        
+        // Skip wrong direction tracks
+        if (track_detail.direction() != dir) continue;
+        
+        // Skip wrong segment type
+        if (seg_type_index != UNDEFINED && track_detail.index() != seg_type_index) {
                     continue;
                 }
-            }
-
-            /* Determine if we are a wire startpoint */
+        
+        // OPTIMIZATION 4: Only compute start for valid tracks
+        int start = get_seg_start(seg_details, itrack, chan_num, seg_num);
+        
+        bool is_endpoint;
+        if (!check_dec) {
             is_endpoint = (seg_num == start);
-            if (Direction::DEC == seg_details[itrack].direction()) {
+        } else {
+            // OPTIMIZATION 5: Only get end if direction is DEC
+            int end = get_seg_end(seg_details, itrack, start, chan_num, max_len);
                 is_endpoint = (seg_num == end);
             }
 
-            /* Count the labels and load if LOAD pass */
             if (is_endpoint) {
-                /*
-                 * not all wire endpoints can be driven by OPIN (depending on the <cb> pattern in the arch file)
-                 * the check_cb is targeting this arch specification:
-                 * if this function is called by get_unidir_opin_connections(),
-                 * then we need to check if mux connections can be added to this type of wire,
-                 * otherwise, this function should not consider <cb> specification.
-                 */
-                if ((!check_cb) || (seg_details[itrack].cb(0) == true)) {
-                    if (pass > 0) {
-                        labels[num_labels] = itrack;
+            // Potential Optimization 6: Cache the cb check
+            // This avoids calling cb(0) multiple times for the same track
+            bool has_cb = track_detail.cb(0);
+            
+            if (!check_cb || has_cb) {
+                // pushback instead of indexing to have automatic resizing
+                labels.push_back(itrack);
                     }
-                    ++num_labels;
-                }
-                if (pass > 0)
-                    num_labels_restricted += (seg_details[itrack].cb(0) == true) ? 1 : 0;
+            
+            if (has_cb) {
+                ++num_labels_restricted;
             }
         }
     }
 
-    *num_wire_muxes = num_labels;
+    *num_wire_muxes = labels.size();
     *num_wire_muxes_cb_restricted = num_labels_restricted;
 }
 

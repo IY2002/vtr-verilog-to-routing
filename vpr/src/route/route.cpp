@@ -22,8 +22,7 @@ bool route(const Netlist<>& net_list,
            std::shared_ptr<SetupHoldTimingInfo> timing_info,
            std::shared_ptr<RoutingDelayCalculator> delay_calc,
            t_chan_width_dist chan_width_dist,
-           t_direct_inf* directs,
-           int num_directs,
+           const std::vector<t_direct_inf>& directs,
            ScreenUpdatePriority first_iteration_priority,
            bool is_flat) {
     auto& device_ctx = g_vpr_ctx.mutable_device();
@@ -34,6 +33,8 @@ bool route(const Netlist<>& net_list,
     if (net_list.nets().empty()) {
         VPR_FATAL_ERROR(VPR_ERROR_ROUTE, "No nets to route\n");
     }
+
+    
 
     t_graph_type graph_type;
     t_graph_type graph_directionality;
@@ -63,7 +64,6 @@ bool route(const Netlist<>& net_list,
                     segment_inf,
                     router_opts,
                     directs,
-                    num_directs,
                     &warning_count,
                     is_flat);
 
@@ -75,7 +75,7 @@ bool route(const Netlist<>& net_list,
 
     init_route_structs(net_list,
                        router_opts.bb_factor,
-                       router_opts.has_choking_spot,
+                       router_opts.has_choke_point,
                        is_flat);
 
     IntraLbPbPinLookup intra_lb_pb_pin_lookup(device_ctx.logical_block_types);
@@ -84,7 +84,7 @@ bool route(const Netlist<>& net_list,
     auto choking_spots = set_nets_choking_spots(net_list,
                                                 route_ctx.net_terminal_groups,
                                                 route_ctx.net_terminal_group_num,
-                                                router_opts.has_choking_spot,
+                                                router_opts.has_choke_point,
                                                 is_flat);
 
     //Initially, the router runs normally trying to reduce congestion while
@@ -201,6 +201,8 @@ bool route(const Netlist<>& net_list,
         print_router_criticality_histogram(net_list, *timing_info, netlist_pin_lookup, is_flat);
     }
 
+    
+
     std::unique_ptr<NetPinTimingInvalidator> pin_timing_invalidator;
     pin_timing_invalidator = make_net_pin_timing_invalidator(
         router_opts.timing_update_type,
@@ -208,8 +210,9 @@ bool route(const Netlist<>& net_list,
         netlist_pin_lookup,
         atom_ctx.nlist,
         atom_ctx.lookup,
-        *timing_info->timing_graph(),
+        timing_info,
         is_flat);
+
 
     std::unique_ptr<NetlistRouter> netlist_router = make_netlist_router(
         net_list,
@@ -225,6 +228,7 @@ bool route(const Netlist<>& net_list,
         choking_spots,
         is_flat);
 
+        
     RouterStats router_stats;
     float prev_iter_cumm_time = 0;
     vtr::Timer iteration_timer;
@@ -245,6 +249,10 @@ bool route(const Netlist<>& net_list,
 
     print_route_status_header();
     for (itry = 1; itry <= router_opts.max_router_iterations; ++itry) {
+        // generate_route_timing_reports(router_opts, analysis_opts, *timing_info, *delay_calc, is_flat);
+        // VTR_LOG("Saved timing report.\n");
+        
+
         /* Reset "is_routed" and "is_fixed" flags to indicate nets not pre-routed (yet) */
         for (auto net_id : net_list.nets()) {
             route_ctx.net_status.set_is_routed(net_id, false);
@@ -313,6 +321,8 @@ bool route(const Netlist<>& net_list,
 
         float iter_cumm_time = iteration_timer.elapsed_sec();
         float iter_elapsed_time = iter_cumm_time - prev_iter_cumm_time;
+
+        PartitionTreeDebug::log("Iteration " + std::to_string(itry) + " took " +  std::to_string(iter_elapsed_time) + " s");
 
         //Output progress
         print_route_status(itry, iter_elapsed_time, pres_fac, num_net_bounding_boxes_updated, iter_results.stats, overuse_info, wirelength_info, timing_info, est_success_iteration);
@@ -430,10 +440,12 @@ bool route(const Netlist<>& net_list,
         /*
          * Prepare for the next iteration
          */
-
         if (router_opts.route_bb_update == e_route_bb_update::DYNAMIC) {
-            num_net_bounding_boxes_updated = dynamic_update_bounding_boxes(iter_results.rerouted_nets);
+            dynamic_update_bounding_boxes(iter_results.rerouted_nets, iter_results.bb_updated_nets);
         }
+
+        num_net_bounding_boxes_updated = iter_results.bb_updated_nets.size();
+        netlist_router->handle_bb_updated_nets(iter_results.bb_updated_nets);
 
         if (itry >= high_effort_congestion_mode_iteration_threshold) {
             //We are approaching the maximum number of routing iterations,
@@ -598,10 +610,12 @@ bool route(const Netlist<>& net_list,
         //If the routing fails, print the overused info
         print_overused_nodes_status(router_opts, overuse_info);
 
-#ifdef VTR_ENABLE_DEBUG_LOGGING
-        if (f_router_debug)
+        if constexpr (VTR_ENABLE_DEBUG_LOGGING_CONST_EXPR) {
+            if (f_router_debug) {
             print_invalid_routing_info(net_list, is_flat);
-#endif
+            }
+        }
+
     }
 
     if (router_opts.with_timing_analysis) {
@@ -614,7 +628,7 @@ bool route(const Netlist<>& net_list,
     VTR_LOG(
         "Router Stats: total_nets_routed: %zu total_connections_routed: %zu total_heap_pushes: %zu total_heap_pops: %zu ",
         router_stats.nets_routed, router_stats.connections_routed, router_stats.heap_pushes, router_stats.heap_pops);
-#ifdef VTR_ENABLE_DEBUG_LOGGING
+    if constexpr (VTR_ENABLE_DEBUG_LOGGING_CONST_EXPR) {
     VTR_LOG(
         "total_internal_heap_pushes: %zu total_internal_heap_pops: %zu total_external_heap_pushes: %zu total_external_heap_pops: %zu ",
         router_stats.intra_cluster_node_pushes, router_stats.intra_cluster_node_pops,
@@ -626,7 +640,7 @@ bool route(const Netlist<>& net_list,
         VTR_LOG("total_internal_%s_pops: %zu ", rr_node_typename[node_type_idx], router_stats.intra_cluster_node_type_cnt_pops[node_type_idx]);
         VTR_LOG("rt_node_%s_pushes: %zu ", rr_node_typename[node_type_idx], router_stats.rt_node_pushes[node_type_idx]);
     }
-#endif
+    }
     VTR_LOG("\n");
 
     return success;

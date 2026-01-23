@@ -330,11 +330,23 @@ std::pair<float, float> MapLookahead::get_expected_delay_and_cong(RRNodeId from_
 
         auto from_ptc = rr_graph.node_ptc_num(from_node);
 
-        std::tie(expected_delay_cost, expected_cong_cost) = util::get_cost_from_src_opin(src_opin_delays[from_layer_num][from_tile_index][from_ptc][to_layer_num],
+        /* We could reach the sink by using an intermediate wire on any reachable layer. We consider all these options and return the minimum cost one. 
+         * get_cost_from_src_opin iterates over all routing segments passed to it (the first argument) and returns 
+         * the minimum cost among them. In the following for loop, we iterate over each layer and pass it the 
+         * routing segments on that layer reachable from the OPIN/SOURCE to segments on that layer. This for loop then calculates and returns 
+         * the minimum cost from the given OPIN/SOURCE to the specified SINK considering routing options across all layers.
+         */ 
+        for (int layer_num = 0; layer_num < device_ctx.grid.get_num_layers(); layer_num++) {
+            float this_delay_cost;
+            float this_cong_cost;
+            std::tie(this_delay_cost, this_cong_cost) = util::get_cost_from_src_opin(src_opin_delays[from_layer_num][from_tile_index][from_ptc][layer_num],
                                                                                          delta_x,
                                                                                          delta_y,
                                                                                          to_layer_num,
                                                                                          get_wire_cost_entry);
+            expected_delay_cost = std::min(expected_delay_cost, this_delay_cost);
+            expected_cong_cost = std::min(expected_cong_cost, this_cong_cost);
+        }
 
         expected_delay_cost *= params.criticality;
         expected_cong_cost *= (1 - params.criticality);
@@ -508,7 +520,6 @@ static void compute_router_wire_lookahead(const std::vector<t_segment_inf>& segm
     }
 
     //Profile each wire segment type
-    for (int from_layer_num = 0; from_layer_num < grid.get_num_layers(); from_layer_num++) {
         for (const auto& segment_inf : segment_inf_vec) {
             std::vector<e_rr_type> chan_types;
             if (segment_inf.parallel_axis == X_AXIS)
@@ -518,13 +529,15 @@ static void compute_router_wire_lookahead(const std::vector<t_segment_inf>& segm
             else //Both for BOTH_AXIS segments and special segments such as clock_networks we want to search in both directions.
                 chan_types.insert(chan_types.end(), {CHANX, CHANY});
 
+        for (int from_layer_num = 0; from_layer_num < grid.get_num_layers(); from_layer_num++) {
+
             for (e_rr_type chan_type : chan_types) {
                 util::t_routing_cost_map routing_cost_map = util::get_routing_cost_map(longest_seg_length,
                                                                                        from_layer_num,
                                                                                        chan_type,
                                                                                        segment_inf,
                                                                                        std::unordered_map<int, std::unordered_set<int>>(),
-                                                                                       true);
+                                                                                       /*sample_all_locs=*/true);
                 if (routing_cost_map.empty()) {
                     continue;
                 }
@@ -535,10 +548,17 @@ static void compute_router_wire_lookahead(const std::vector<t_segment_inf>& segm
 
                 /* fill in missing entries in the lookahead cost map by copying the closest cost entries (cost map was computed based on
                  * a reference coordinate > (0,0) so some entries that represent a cross-chip distance have not been computed) */
-                fill_in_missing_lookahead_entries(segment_inf.seg_index, chan_type);
             }
         }
-    }
+
+        // Fill in missing entries for the segment
+        // This is done after all segments are processed to avoid overwriting entries that were already filled in
+        // by a previous segment.
+        for (e_rr_type chan_type : chan_types) fill_in_missing_lookahead_entries(segment_inf.seg_index, chan_type);
+            
+        }
+
+    // print out the lookahead map (f_wire_cost_map) to a file
 }
 
 /* sets the lookahead cost map entries based on representative cost entries from routing_cost_map */
@@ -827,6 +847,8 @@ static void min_opin_distance_cost_map(const util::t_src_opin_delays& src_opin_d
                             float expected_delay_cost = std::numeric_limits<float>::infinity();
                             float expected_cong_cost = std::numeric_limits<float>::infinity();
 
+                            std::string to_physical_type = g_vpr_ctx.device().physical_tile_types[tile_type_idx].name;
+
                             for (const auto& layer_src_opin_delay_map : tile_opin_map) {
                                 float layer_expected_delay_cost = std::numeric_limits<float>::infinity();
                                 float layer_expected_cong_cost = std::numeric_limits<float>::infinity();
@@ -841,6 +863,35 @@ static void min_opin_distance_cost_map(const util::t_src_opin_delays& src_opin_d
                                         }
                                         util::Cost_Entry wire_cost_entry;
 
+                                        // if to_physical_type is equal to "io" then we look at CHANX and CHANY type (one )
+                                        // if (to_physical_type == "io") {
+                                        //     wire_cost_entry = get_wire_cost_entry(reachable_wire_inf.wire_rr_type,
+                                        //                                           reachable_wire_inf.wire_seg_index,
+                                        //                                           reachable_wire_inf.layer_number,
+                                        //                                           dx,
+                                        //                                           dy,
+                                        //                                           to_layer_num);
+                                            
+                                        //     util::Cost_Entry other_channel_cost_entry = get_wire_cost_entry(reachable_wire_inf.wire_rr_type == CHANX ? CHANY : CHANX,
+                                        //                                                           reachable_wire_inf.wire_seg_index,
+                                        //                                                           reachable_wire_inf.layer_number,
+                                        //                                                           dx,
+                                        //                                                           dy,
+                                        //                                                           to_layer_num);
+
+                                        //     if (other_channel_cost_entry.delay < wire_cost_entry.delay) {
+                                        //         wire_cost_entry = other_channel_cost_entry;
+                                        //     }
+                                        // } else {
+                                        //     wire_cost_entry = get_wire_cost_entry(reachable_wire_inf.wire_rr_type,
+                                        //                                           reachable_wire_inf.wire_seg_index,
+                                        //                                           reachable_wire_inf.layer_number,
+                                        //                                           dx,
+                                        //                                           dy,
+                                        //                                           to_layer_num);
+                                        // }
+
+                                        // Old code
                                         wire_cost_entry = get_wire_cost_entry(reachable_wire_inf.wire_rr_type,
                                                                               reachable_wire_inf.wire_seg_index,
                                                                               reachable_wire_inf.layer_number,

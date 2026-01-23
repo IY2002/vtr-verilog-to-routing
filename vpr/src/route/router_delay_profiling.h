@@ -2,8 +2,6 @@
 #define ROUTER_DELAY_PROFILING_H_
 
 #include "vpr_types.h"
-#include "binary_heap.h"
-#include "four_ary_heap.h"
 #include "connection_router.h"
 
 #include <vector>
@@ -58,8 +56,7 @@ void alloc_routing_structs(const t_chan_width& chan_width,
                            const t_router_opts& router_opts,
                            t_det_routing_arch* det_routing_arch,
                            std::vector<t_segment_inf>& segment_inf,
-                           const t_direct_inf* directs,
-                           const int num_directs,
+                           const std::vector<t_direct_inf>& directs,
                            bool is_flat);
 
 void free_routing_structs();

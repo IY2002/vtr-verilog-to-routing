@@ -23,7 +23,7 @@
  * Larger values increase the time to compute the lookahead, but may give
  * more accurate lookahead estimates during routing.
  */
-static constexpr int MAX_TRACK_OFFSET = 16;
+static constexpr int MAX_TRACK_OFFSET = 1;
 
 static void dijkstra_flood_to_wires(int itile, RRNodeId inode, util::t_src_opin_delays& src_opin_delays);
 
@@ -130,7 +130,7 @@ static constexpr int DIRECT_CONNECT_SPECIAL_SEG_TYPE = -1;
 
 namespace util {
 
-PQ_Entry::PQ_Entry(RRNodeId set_rr_node, int /*switch_ind*/, float parent_delay, float parent_R_upstream, float parent_congestion_upstream, bool starting_node) {
+PQ_Entry::PQ_Entry(RRNodeId set_rr_node, int switch_ind, float parent_delay, float parent_R_upstream, float parent_congestion_upstream, bool starting_node) {
     this->rr_node = set_rr_node;
 
     auto& device_ctx = g_vpr_ctx.device();
@@ -140,6 +140,8 @@ PQ_Entry::PQ_Entry(RRNodeId set_rr_node, int /*switch_ind*/, float parent_delay,
     this->R_upstream = parent_R_upstream;
     if (!starting_node) {
         auto cost_index = rr_graph.node_cost_index(RRNodeId(set_rr_node));
+
+        
         //this->delay += rr_graph.node_C(RRNodeId(set_rr_node)) * (g_rr_switch_inf[switch_ind].R + 0.5*rr_graph.node_R(RRNodeId(set_rr_node))) +
         //              g_rr_switch_inf[switch_ind].Tdel;
 
@@ -153,7 +155,9 @@ PQ_Entry::PQ_Entry(RRNodeId set_rr_node, int /*switch_ind*/, float parent_delay,
         //NOTE: We neglect the T_quadratic and C_load terms and Switch R, so this lookahead is likely
         //      less accurate on unbuffered (e.g. pass-gate) architectures
 
-        this->delay += device_ctx.rr_indexed_data[cost_index].T_linear;
+        // this->delay += device_ctx.rr_indexed_data[cost_index].T_linear;
+
+        this->delay += rr_graph.rr_switch_inf(RRSwitchId(switch_ind)).Tdel;
 
         this->congestion_upstream += device_ctx.rr_indexed_data[cost_index].base_cost;
     }
@@ -412,7 +416,7 @@ t_src_opin_delays compute_router_src_opin_lookahead(bool is_flat) {
                         VTR_LOG_WARN("Found no %ssample locations for %s in %s\n",
                                      (num_sampled_locs == 0) ? "" : "more ",
                                      rr_node_typename[rr_type],
-                                     device_ctx.physical_tile_types[itile].name);
+                                     device_ctx.physical_tile_types[itile].name.c_str());
                         break;
                     }
 
@@ -440,7 +444,7 @@ t_src_opin_delays compute_router_src_opin_lookahead(bool is_flat) {
                                 break;
                             }
                         }
-                        if (reachable_wire_found) {
+                        if (!reachable_wire_found) {
                             VTR_LOGV_DEBUG(f_router_debug, "Found no reachable wires from %s (%s) at (%d,%d,%d)\n",
                                            rr_node_typename[rr_type],
                                            rr_node_arch_name(node_id, is_flat).c_str(),
@@ -491,7 +495,7 @@ t_chan_ipins_delays compute_router_chan_ipin_lookahead() {
             if (sample_loc.x == OPEN && sample_loc.y == OPEN && sample_loc.layer_num == OPEN) {
                 //No untried instances of the current tile type left
                 VTR_LOG_WARN("Found no sample locations for %s\n",
-                             tile_type.name);
+                             tile_type.name.c_str());
                 continue;
             }
 
@@ -594,6 +598,12 @@ std::pair<int, int> get_xy_deltas(RRNodeId from_node, RRNodeId to_node) {
 
     int delta_x, delta_y;
 
+    // auto [from_x, from_y] = get_adjusted_rr_position(from_node);
+    // auto [to_x, to_y] = get_adjusted_rr_position(to_node);
+
+    // delta_x = to_x - from_x;
+    // delta_y = to_y - from_y;
+
     if (!is_chan(from_type) && !is_chan(to_type)) {
         //Alternate formulation for non-channel types
         auto [from_x, from_y] = get_adjusted_rr_position(from_node);
@@ -679,6 +689,146 @@ std::pair<int, int> get_xy_deltas(RRNodeId from_node, RRNodeId to_node) {
     return {delta_x, delta_y};
 }
 
+// t_routing_cost_map get_routing_cost_map(int longest_seg_length,
+//                                         int from_layer_num,
+//                                         const e_rr_type& chan_type,
+//                                         const t_segment_inf& segment_inf,
+//                                         const std::unordered_map<int, std::unordered_set<int>>& sample_locs,
+//                                         bool sample_all_locs) {
+//     const auto& device_ctx = g_vpr_ctx.device();
+//     const auto& rr_graph = device_ctx.rr_graph;
+//     const auto& grid = device_ctx.grid;
+
+//     //Start sampling at the lower left non-corner
+//     int ref_x = 1;
+//     int ref_y = 1;
+
+//     //Sample from locations near the reference location (to capture maximum distance paths)
+//     //Also sample from locations at least the longest wire length away from the edge (to avoid
+//     //edge effects for shorter distances)
+//     std::vector<int> ref_increments = {0,
+//                                        1,
+//                                        longest_seg_length,
+//                                        longest_seg_length + 1,
+//                                     //    (int) device_ctx.grid.width() / 2, // sample from the middle of the grid as well
+//                                     };
+
+//     //Uniquify the increments (avoid sampling the same locations repeatedly if they happen to
+//     //overlap)
+//     std::stable_sort(ref_increments.begin(), ref_increments.end());
+//     ref_increments.erase(std::unique(ref_increments.begin(), ref_increments.end()), ref_increments.end());
+
+//     //Upper right non-corner
+//     int target_x = device_ctx.grid.width() - 2;
+//     int target_y = device_ctx.grid.height() - 2;
+
+//     //if arch file specifies die_number="layer_num" doesn't require inter-cluster
+//     //programmable routing resources, then we shouldn't profile wire segment types in
+//     //the current layer
+//     if (!device_ctx.inter_cluster_prog_routing_resources[from_layer_num]) {
+//         return t_routing_cost_map();
+//     }
+
+//     //First try to pick good representative sample locations for each type
+//     std::vector<RRNodeId> sample_nodes;
+//     std::vector<e_rr_type> chan_types;
+//     if (segment_inf.parallel_axis == X_AXIS)
+//         chan_types.push_back(CHANX);
+//     else if (segment_inf.parallel_axis == Y_AXIS)
+//         chan_types.push_back(CHANY);
+//     else //Both for BOTH_AXIS segments and special segments such as clock_networks we want to search in both directions.
+//         chan_types.insert(chan_types.end(), {CHANX, CHANY});
+
+//     for (int ref_inc : ref_increments) {
+//         int sample_x = ref_x + ref_inc;
+//         int sample_y = ref_y + ref_inc;
+
+//         if (sample_x >= int(grid.width())) continue;
+//         if (sample_y >= int(grid.height())) continue;
+
+//         for (int track_offset = 0; track_offset < MAX_TRACK_OFFSET; track_offset += 2) {
+//             /* get the rr node index from which to start routing */
+//             RRNodeId start_node = get_start_node(from_layer_num, sample_x, sample_y,
+//                                                  target_x, target_y, //non-corner upper right
+//                                                  chan_type, segment_inf.seg_index, track_offset);
+
+//             if (!start_node) {
+//                 continue;
+//             }
+//             // TODO: Temporary - After testing benchmarks this can be deleted
+//             VTR_ASSERT(rr_graph.node_layer(start_node) == from_layer_num);
+
+//             sample_nodes.emplace_back(start_node);
+//         }
+//     }
+
+//     //If we failed to find any representative sample locations, search exhaustively
+//     //
+//     //This is to ensure we sample 'unusual' wire types which may not exist in all channels
+//     //(e.g. clock routing)
+//     if (sample_nodes.empty()) {
+//         //Try an exhaustive search to find a suitable sample point
+//         for (RRNodeId rr_node : rr_graph.nodes()) {
+//             auto rr_type = rr_graph.node_type(rr_node);
+//             if (rr_type != chan_type) continue;
+//             if (rr_graph.node_layer(rr_node) != from_layer_num) continue;
+
+//             auto cost_index = rr_graph.node_cost_index(rr_node);
+//             VTR_ASSERT(cost_index != RRIndexedDataId(OPEN));
+
+//             int seg_index = device_ctx.rr_indexed_data[cost_index].seg_index;
+
+//             if (seg_index == segment_inf.seg_index) {
+//                 sample_nodes.push_back(rr_node);
+//             }
+
+//             if (sample_nodes.size() >= ref_increments.size()) {
+//                 break;
+//             }
+//         }
+//     }
+
+//     //Finally, now that we have a list of sample locations, run a Dijkstra flood from
+//     //each sample location to profile the routing network from this type
+
+
+//     t_routing_cost_map routing_cost_map({static_cast<unsigned long>(device_ctx.grid.get_num_layers()), device_ctx.grid.width(), device_ctx.grid.height()});
+
+//     if (sample_nodes.empty()) {
+//         VTR_LOG_WARN("Unable to find any sample location for segment %s type '%s' (length %d)\n",
+//                      rr_node_typename[chan_type],
+//                      segment_inf.name.c_str(),
+//                      segment_inf.length);
+//     } else {
+//         //reset cost for this segment
+//         routing_cost_map.fill(Expansion_Cost_Entry());
+
+//         // to avoid multiple memory allocation and de-allocations in run_dijkstra()
+//         // dijkstra_data is created outside the for loop and passed by reference to dijkstra_data()
+//         t_dijkstra_data dijkstra_data;
+
+//         for (RRNodeId sample_node : sample_nodes) {
+//             int sample_x = rr_graph.node_xlow(sample_node);
+//             int sample_y = rr_graph.node_ylow(sample_node);
+
+//             if (rr_graph.node_direction(sample_node) == Direction::DEC) {
+//                 sample_x = rr_graph.node_xhigh(sample_node);
+//                 sample_y = rr_graph.node_yhigh(sample_node);
+//             }
+
+//             run_dijkstra(sample_node,
+//                          sample_x,
+//                          sample_y,
+//                          routing_cost_map,
+//                          dijkstra_data,
+//                          sample_locs,
+//                          sample_all_locs);
+//         }
+//     }
+
+//     return routing_cost_map;
+// }
+
 t_routing_cost_map get_routing_cost_map(int longest_seg_length,
                                         int from_layer_num,
                                         const e_rr_type& chan_type,
@@ -689,26 +839,20 @@ t_routing_cost_map get_routing_cost_map(int longest_seg_length,
     const auto& rr_graph = device_ctx.rr_graph;
     const auto& grid = device_ctx.grid;
 
-    //Start sampling at the lower left non-corner
-    int ref_x = 1;
-    int ref_y = 1;
-
     //Sample from locations near the reference location (to capture maximum distance paths)
     //Also sample from locations at least the longest wire length away from the edge (to avoid
     //edge effects for shorter distances)
     std::vector<int> ref_increments = {0,
                                        1,
                                        longest_seg_length,
-                                       longest_seg_length + 1};
+                                       longest_seg_length + 1,
+                                    //    (int) device_ctx.grid.width() / 2, // sample from the middle of the grid as well
+                                    };
 
     //Uniquify the increments (avoid sampling the same locations repeatedly if they happen to
     //overlap)
     std::stable_sort(ref_increments.begin(), ref_increments.end());
     ref_increments.erase(std::unique(ref_increments.begin(), ref_increments.end()), ref_increments.end());
-
-    //Upper right non-corner
-    int target_x = device_ctx.grid.width() - 2;
-    int target_y = device_ctx.grid.height() - 2;
 
     //if arch file specifies die_number="layer_num" doesn't require inter-cluster
     //programmable routing resources, then we shouldn't profile wire segment types in
@@ -717,15 +861,19 @@ t_routing_cost_map get_routing_cost_map(int longest_seg_length,
         return t_routing_cost_map();
     }
 
-    //First try to pick good representative sample locations for each type
     std::vector<RRNodeId> sample_nodes;
-    std::vector<e_rr_type> chan_types;
-    if (segment_inf.parallel_axis == X_AXIS)
-        chan_types.push_back(CHANX);
-    else if (segment_inf.parallel_axis == Y_AXIS)
-        chan_types.push_back(CHANY);
-    else //Both for BOTH_AXIS segments and special segments such as clock_networks we want to search in both directions.
-        chan_types.insert(chan_types.end(), {CHANX, CHANY});
+
+    // *** MODIFICATION START: We will now run two passes for sampling ***
+
+    // PASS 1: Sample from Bottom-Left towards Top-Right (Original Behavior)
+    {
+        //Start sampling at the lower left non-corner
+        int ref_x = 1;
+        int ref_y = 1;
+
+        //Upper right non-corner
+        int target_x = device_ctx.grid.width() - 2;
+        int target_y = device_ctx.grid.height() - 2;
 
     for (int ref_inc : ref_increments) {
         int sample_x = ref_x + ref_inc;
@@ -735,20 +883,48 @@ t_routing_cost_map get_routing_cost_map(int longest_seg_length,
         if (sample_y >= int(grid.height())) continue;
 
         for (int track_offset = 0; track_offset < MAX_TRACK_OFFSET; track_offset += 2) {
-            /* get the rr node index from which to start routing */
             RRNodeId start_node = get_start_node(from_layer_num, sample_x, sample_y,
                                                  target_x, target_y, //non-corner upper right
                                                  chan_type, segment_inf.seg_index, track_offset);
-
-            if (!start_node) {
-                continue;
-            }
-            // TODO: Temporary - After testing benchmarks this can be deleted
+                if (start_node) {
             VTR_ASSERT(rr_graph.node_layer(start_node) == from_layer_num);
-
             sample_nodes.emplace_back(start_node);
         }
     }
+        }
+    }
+
+    // PASS 2: Sample from Top-Right towards Bottom-Left (New Behavior)
+    // {
+    //     //Start sampling at the upper right non-corner
+    //     int ref_x = device_ctx.grid.width() - 2;
+    //     int ref_y = device_ctx.grid.height() - 2;
+
+    //     //Lower left non-corner
+    //     int target_x = 1;
+    //     int target_y = 1;
+
+    //     for (int ref_inc : ref_increments) {
+    //         // NOTE: We SUBTRACT the increment to sample inwards from the top-right corner
+    //         int sample_x = ref_x - ref_inc;
+    //         int sample_y = ref_y - ref_inc;
+
+    //         if (sample_x < 0) continue;
+    //         if (sample_y < 0) continue;
+            
+    //         for (int track_offset = 0; track_offset < MAX_TRACK_OFFSET; track_offset += 2) {
+    //             RRNodeId start_node = get_start_node(from_layer_num, sample_x, sample_y,
+    //                                                  target_x, target_y, //non-corner lower left
+    //                                                  chan_type, segment_inf.seg_index, track_offset);
+    //             if (start_node) {
+    //                 VTR_ASSERT(rr_graph.node_layer(start_node) == from_layer_num);
+    //                 sample_nodes.emplace_back(start_node);
+    //             }
+    //         }
+    //     }
+    // }
+    // *** MODIFICATION END ***
+
 
     //If we failed to find any representative sample locations, search exhaustively
     //
@@ -776,10 +952,13 @@ t_routing_cost_map get_routing_cost_map(int longest_seg_length,
         }
     }
 
+    // Uniquify the collected sample nodes to avoid redundant Dijkstra runs
+    std::sort(sample_nodes.begin(), sample_nodes.end());
+    sample_nodes.erase(std::unique(sample_nodes.begin(), sample_nodes.end()), sample_nodes.end());
+
+
     //Finally, now that we have a list of sample locations, run a Dijkstra flood from
     //each sample location to profile the routing network from this type
-
-
     t_routing_cost_map routing_cost_map({static_cast<unsigned long>(device_ctx.grid.get_num_layers()), device_ctx.grid.width(), device_ctx.grid.height()});
 
     if (sample_nodes.empty()) {
