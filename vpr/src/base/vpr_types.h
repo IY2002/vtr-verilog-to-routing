@@ -50,6 +50,8 @@
 #include "rr_graph_type.h"
 #include "vtr_vector_map.h"
 
+
+
 /*******************************************************************************
  * Global data types and constants
  ******************************************************************************/
@@ -85,6 +87,12 @@ enum class ScreenUpdatePriority {
     MINOR = 0,
     MAJOR = 1
 };
+
+#ifdef VTR_ENABLE_DEBUG_LOGGING
+constexpr bool VTR_ENABLE_DEBUG_LOGGING_CONST_EXPR = true;
+#else
+constexpr bool VTR_ENABLE_DEBUG_LOGGING_CONST_EXPR = false;
+#endif
 
 #define MAX_SHORT 32767
 

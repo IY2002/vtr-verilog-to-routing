@@ -317,6 +317,7 @@ std::pair<std::unique_ptr<MoveGenerator>, std::unique_ptr<MoveGenerator>> create
             karmed_bandit_agent2->set_step(placer_opts.place_agent_gamma, move_lim);
             move_generators.second = std::make_unique<SimpleRLMoveGenerator>(placer_state,
                                                                              reward_fun,
+                                                                            rng,
                                                                              karmed_bandit_agent2,
                                                                              noc_attraction_weight,
                                                                              placer_opts.place_high_fanout_net);

@@ -8,6 +8,7 @@
 #include "vpr_api.h"
 #include "echo_files.h"
 #include <cstring>
+#include <string>
 #include <vector>
 
 namespace {
@@ -63,7 +64,7 @@ TEST_CASE("read_arch_metadata", "[vpr]") {
     bool found_direct = false;
 
     for (const auto& type : logical_block_types) {
-        if (strcmp("io", type.name) == 0) {
+        if (type.name == "io") {
             found_pb_type = true;
             REQUIRE(type.pb_type != nullptr);
             REQUIRE(type.pb_type->meta.has(pb_type_type));
@@ -75,7 +76,7 @@ TEST_CASE("read_arch_metadata", "[vpr]") {
             REQUIRE(type.pb_type->modes != nullptr);
 
             for (int imode = 0; imode < type.pb_type->num_modes; ++imode) {
-                if (strcmp("inpad", type.pb_type->modes[imode].name) == 0) {
+                if (std::string(type.pb_type->modes[imode].name) == "inpad") {
                     found_mode = true;
                     const auto* mode = &type.pb_type->modes[imode];
 

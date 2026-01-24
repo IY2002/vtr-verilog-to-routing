@@ -82,8 +82,11 @@ target_link_libraries(vpr_interface INTERFACE
     libarchfpga
     libvtrutil
     librrgraph
-    sockpp
 )
+
+if(VPR_USE_SERVER)
+    target_link_libraries(vpr_interface INTERFACE sockpp-static)
+endif()
 
 target_include_directories(vpr_interface INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/src

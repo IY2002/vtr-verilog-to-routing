@@ -8,6 +8,7 @@
 #include "globals.h"
 #include "net_delay.h"
 #include "place_and_route.h"
+#include "route_tree.h"
 #include "timing_place_lookup.h"
 
 static constexpr const char kArchFile[] = "../../vtr_flow/arch/timing/k6_frac_N10_mem32K_40nm.xml";
@@ -67,7 +68,7 @@ static float do_one_route(RRNodeId source_node,
 
     // Find the cheapest route if possible.
     bool found_path;
-    t_heap cheapest;
+    RTExploredNode cheapest;
     ConnectionParameters conn_params(ParentNetId::INVALID(),
                                      -1,
                                      false,
@@ -164,8 +165,7 @@ TEST_CASE("connection_router", "[vpr]") {
         vpr_setup.RouterOpts,
         &vpr_setup.RoutingArch,
         vpr_setup.Segments,
-        arch.Directs,
-        arch.num_directs,
+        arch.directs,
         router_opts.flat_routing);
 
     // Find a source and sink to route

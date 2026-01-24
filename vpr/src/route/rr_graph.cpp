@@ -57,15 +57,15 @@ struct t_mux_size_distribution {
     t_mux_size_distribution* next;
 };
 
-struct t_clb_to_clb_directs {
-    t_physical_tile_type_ptr from_clb_type;
-    int from_clb_pin_start_index;
-    int from_clb_pin_end_index;
-    t_physical_tile_type_ptr to_clb_type;
-    int to_clb_pin_start_index;
-    int to_clb_pin_end_index;
-    int switch_index; //The switch type used by this direct connection
-};
+// struct t_clb_to_clb_directs {
+//     t_physical_tile_type_ptr from_clb_type;
+//     int from_clb_pin_start_index;
+//     int from_clb_pin_end_index;
+//     t_physical_tile_type_ptr to_clb_type;
+//     int to_clb_pin_start_index;
+//     int to_clb_pin_end_index;
+//     int switch_index; //The switch type used by this direct connection
+// };
 
 struct t_pin_loc {
     int pin_index;
@@ -589,7 +589,7 @@ void uniquify_edges(t_rr_edge_info_set& rr_edges_to_create);
 void alloc_and_load_edges(RRGraphBuilder& rr_graph_builder,
                           const t_rr_edge_info_set& rr_edges_to_create);
 
-static void alloc_and_load_rr_switch_inf(RRGraphBuilder& rr_graph_builder,
+void alloc_and_load_rr_switch_inf(RRGraphBuilder& rr_graph_builder,
                                          std::vector<std::map<int, int>>& switch_fanin_remap,
                                          const std::map<int, t_arch_switch_inf> arch_sw_inf,
                                          const float R_minW_nmos,
@@ -853,7 +853,7 @@ void create_rr_graph(const t_graph_type graph_type,
                                                det_routing_arch->R_minW_nmos,
                                                det_routing_arch->R_minW_pmos,
                                                router_opts.base_cost_type,
-                                               directs, num_directs,
+                                               directs.data(), static_cast<int>(directs.size()),
                                                &det_routing_arch->wire_to_rr_ipin_switch,
                                                det_routing_arch->shrink_boundary,                                  /* Shrink to the smallest boundary, no routing wires for empty zone */
                                                det_routing_arch->perimeter_cb,                                  /* Now I/O or any programmable blocks on perimeter can have full cb access (both cbx and cby) */
